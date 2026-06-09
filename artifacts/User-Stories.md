@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document captures the Phase 1 user stories for the Vetan Employee Salary Management System, aligned with the [REQUIREMENTS.md](./REQUIREMENTS.md).
+This document captures the Phase 1 user stories for the Vetan Employee Salary Management System, aligned with the [Refined-Requirement.md](./Refined-Requirement.md).
 
 ### Story Point Scale (Fibonacci)
 
@@ -391,7 +391,7 @@ This document captures the Phase 1 user stories for the Vetan Employee Salary Ma
 
 # Out of Scope for Phase 1
 
-The following capabilities are intentionally excluded from Phase 1 (see [REQUIREMENTS.md](./REQUIREMENTS.md) §4 for detailed reasoning):
+The following capabilities are intentionally excluded from Phase 1 (see [Refined-Requirement.md](./Refined-Requirement.md) §4 for detailed reasoning):
 
 | Excluded Feature | Key Reason |
 |-----------------|------------|
