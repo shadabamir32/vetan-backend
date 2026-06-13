@@ -117,3 +117,16 @@ db = DatabaseManager()
 # Export engine and SessionLocal directly for backwards compatibility with legacy seeders and imports
 engine = db.engine
 SessionLocal = db.session_local
+
+
+def get_db():
+    """
+    FastAPI dependency that yields a database session from the default connection.
+    Autocloses when done.
+    """
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+
