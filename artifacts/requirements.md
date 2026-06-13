@@ -267,4 +267,4 @@ The generated dataset should resemble a realistic enterprise workforce and suppo
 
 ---
 
-*Document prepared for ACME Corp Salary & Payroll Management Platform — v1.0*
+*Document prepared for ACME Salary & Payroll Management Platform — v1.0*
