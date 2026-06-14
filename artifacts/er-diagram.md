@@ -74,6 +74,7 @@ erDiagram
         int status
 
         datetime run_at
+        string message
     }
 
     PAYROLL_RECORDS {
