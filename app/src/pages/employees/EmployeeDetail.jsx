@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Pencil, Plus, CheckCircle, Clock, Receipt, User, HelpCircle } from 'lucide-react'
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import { getEmployee, getSalaryHistory, getEmployeePayrollHistory, runIndividualPayroll } from '../../api'
 import { fmt, fmtDate, monthName } from '../../utils'
 import StatusBadge from '../../components/StatusBadge'
@@ -27,16 +28,18 @@ export default function EmployeeDetail({ empId, onBack }) {
     enabled: !!empId,
   })
 
+  // Enabled up front to show in top banner summary
   const { data: revisions = [], isLoading: isRevisionsLoading } = useQuery({
     queryKey: ['salary-history', empId],
     queryFn: () => getSalaryHistory(empId).then(r => r.data),
-    enabled: !!empId && activeTab === 'compensation',
+    enabled: !!empId,
   })
 
+  // Enabled up front to calculate Last Paid and Paid YTD
   const { data: payrollHistory = [], isLoading: isPayrollLoading, refetch: refetchPayroll } = useQuery({
     queryKey: ['employee-payroll-history', empId],
     queryFn: () => getEmployeePayrollHistory(empId).then(r => r.data),
-    enabled: !!empId && activeTab === 'payroll',
+    enabled: !!empId,
   })
 
   // Individual Payroll Run Mutation
@@ -81,6 +84,93 @@ export default function EmployeeDetail({ empId, onBack }) {
     })
   }
 
+  // 1. Dynamic Tenure Calculation
+  const tenureText = (() => {
+    if (!emp.joining_date) return '—'
+    const start = new Date(emp.joining_date)
+    const end = emp.termination_date ? new Date(emp.termination_date) : new Date()
+    let years = end.getFullYear() - start.getFullYear()
+    let months = end.getMonth() - start.getMonth()
+    if (months < 0) {
+      years--
+      months += 12
+    }
+    const parts = []
+    if (years > 0) parts.push(`${years} yr${years > 1 ? 's' : ''}`)
+    if (months > 0 || parts.length === 0) parts.push(`${months} mo${months > 1 ? 's' : ''}`)
+    return parts.join(' ')
+  })()
+
+  // 2. Last Paid pay slip details
+  const sortedPayroll = [...payrollHistory].sort(
+    (a, b) => (b.payroll_year * 12 + b.payroll_month) - (a.payroll_year * 12 + a.payroll_month)
+  )
+  const lastPaidRecord = sortedPayroll[0]
+  const lastPaidText = lastPaidRecord
+    ? `${fmt(lastPaidRecord.net_amount, lastPaidRecord.currency)} (${monthName(lastPaidRecord.payroll_month).slice(0, 3)} ${lastPaidRecord.payroll_year})`
+    : 'Never paid'
+
+  // 3. Year-to-Date (YTD) sum paid
+  const currentYear = new Date().getFullYear()
+  const displayCurrency = salary?.currency || 'USD'
+  const ytdPaid = payrollHistory
+    .filter(p => p.payroll_year === currentYear)
+    .reduce((sum, p) => sum + parseFloat(p.net_amount), 0)
+  const ytdText = payrollHistory.length > 0 ? fmt(ytdPaid, displayCurrency) : '—'
+
+  // 4. Raise / Growth calculations for salary revisions (SCD Type 2)
+  const sortedRevisions = [...revisions].sort((a, b) => a.revision_number - b.revision_number)
+  const revisionsWithRaise = sortedRevisions.map((rev, index) => {
+    let raisePercent = null
+    let raiseAmount = null
+    if (index > 0) {
+      const prevRev = sortedRevisions[index - 1]
+      const prevSalary = parseFloat(prevRev.annual_base_salary)
+      const currSalary = parseFloat(rev.annual_base_salary)
+      raiseAmount = currSalary - prevSalary
+      if (prevSalary > 0) {
+        raisePercent = (raiseAmount / prevSalary) * 100
+      }
+    }
+    return { ...rev, raisePercent, raiseAmount }
+  })
+  const displayRevisions = [...revisionsWithRaise].reverse()
+
+  // 5. Chart Data Preparation
+  const chartData = sortedRevisions.map(r => {
+    const base = parseFloat(r.annual_base_salary)
+    const allowance = parseFloat(r.monthly_allowance) * 12 // Annualized allowance
+    return {
+      date: new Date(r.effective_from).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }),
+      'Base Salary': base,
+      'Total Package': base + allowance,
+    }
+  })
+
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-hi)',
+          padding: '10px 14px',
+          borderRadius: 6,
+          fontSize: '.8rem',
+          boxShadow: 'var(--shadow-lg)'
+        }}>
+          <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--text-1)' }}>{label}</div>
+          {payload.map(p => (
+            <div key={p.name} style={{ display: 'flex', gap: 12, justifyContent: 'space-between', color: p.color, marginTop: 4 }}>
+              <span style={{ fontWeight: 500 }}>{p.name}:</span>
+              <span style={{ fontFamily: 'var(--mono)', fontWeight: 600 }}>{fmt(p.value, displayCurrency)}</span>
+            </div>
+          ))}
+        </div>
+      )
+    }
+    return null
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
       {/* Back & Actions Header */}
@@ -99,17 +189,7 @@ export default function EmployeeDetail({ empId, onBack }) {
 
       {/* Top Section: Profile and Summary Card */}
       <div style={{ padding: '0 32px 24px' }}>
-        <div style={{
-          background: 'var(--bg-card)',
-          border: '1px solid var(--border)',
-          borderRadius: 8,
-          padding: '24px 32px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 24,
-        }}>
+        <div className="profile-card">
           {/* Avatar and Identity */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
             <div style={{
@@ -141,20 +221,33 @@ export default function EmployeeDetail({ empId, onBack }) {
           </div>
 
           {/* Quick Metrics */}
-          <div style={{ display: 'flex', gap: 40, flexWrap: 'wrap' }}>
-            <div>
-              <div style={{ fontSize: '.75rem', color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>Department</div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 600, marginTop: 4 }}>{emp.department_name || '—'}</div>
+          <div className="profile-metrics">
+            <div style={{ minWidth: 120 }}>
+              <div style={{ fontSize: '.68rem', color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.08em' }}>Department</div>
+              <div style={{ fontSize: '1rem', fontWeight: 600, marginTop: 4, color: 'var(--text-1)' }}>{emp.department_name || '—'}</div>
+              <div style={{ fontSize: '.75rem', color: 'var(--text-2)', marginTop: 2 }}>{emp.country}</div>
             </div>
-            <div>
-              <div style={{ fontSize: '.75rem', color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>Country / Currency</div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 600, marginTop: 4 }}>{emp.country} ({salary?.currency || '—'})</div>
+            <div style={{ minWidth: 120 }}>
+              <div style={{ fontSize: '.68rem', color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.08em' }}>Tenure</div>
+              <div style={{ fontSize: '1rem', fontWeight: 600, marginTop: 4, color: 'var(--text-1)' }}>{tenureText}</div>
+              <div style={{ fontSize: '.75rem', color: 'var(--text-2)', marginTop: 2 }}>Joined {fmtDate(emp.joining_date)}</div>
             </div>
-            <div>
-              <div style={{ fontSize: '.75rem', color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>Annual Base Salary</div>
+            <div style={{ minWidth: 140 }}>
+              <div style={{ fontSize: '.68rem', color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.08em' }}>Last Paid</div>
+              <div style={{ fontSize: '1rem', fontWeight: 600, marginTop: 4, color: 'var(--text-1)', fontFamily: 'var(--mono)' }}>{lastPaidText}</div>
+              <div style={{ fontSize: '.75rem', color: 'var(--text-2)', marginTop: 2 }}>Direct Deposit</div>
+            </div>
+            <div style={{ minWidth: 120 }}>
+              <div style={{ fontSize: '.68rem', color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.08em' }}>Paid YTD ({currentYear})</div>
+              <div style={{ fontSize: '1rem', fontWeight: 600, marginTop: 4, color: 'var(--text-1)', fontFamily: 'var(--mono)' }}>{ytdText}</div>
+              <div style={{ fontSize: '.75rem', color: 'var(--text-2)', marginTop: 2 }}>Net Salary Sum</div>
+            </div>
+            <div style={{ minWidth: 150 }}>
+              <div style={{ fontSize: '.68rem', color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.08em' }}>Annual Base Salary</div>
               <div style={{ fontSize: '1.1rem', fontWeight: 700, fontFamily: 'var(--mono)', color: 'var(--accent)', marginTop: 4 }}>
                 {salary ? fmt(salary.annual_base_salary, salary.currency) : '—'}
               </div>
+              <div style={{ fontSize: '.75rem', color: 'var(--text-2)', marginTop: 2 }}>Current Active Package</div>
             </div>
           </div>
         </div>
@@ -204,58 +297,137 @@ export default function EmployeeDetail({ empId, onBack }) {
 
         {/* Tab content: Compensation & Revisions */}
         {activeTab === 'compensation' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 32, alignItems: 'start' }}>
-            {/* Compensation breakdown summary */}
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: 24 }}>
-              <h3 style={{ marginTop: 0, marginBottom: 20, fontSize: '.95rem', fontWeight: 700 }}>Salary Breakdown</h3>
-              {salary ? (() => {
-                const monthlyGross = parseFloat(salary.annual_base_salary) / 12 + parseFloat(salary.monthly_allowance)
-                const monthlyNet = monthlyGross - parseFloat(salary.monthly_deduction)
-                const bars = [
-                  { label: 'Annual Base Salary', value: salary.annual_base_salary, color: 'var(--accent)', pct: 100 },
-                  { label: 'Monthly Allowance', value: salary.monthly_allowance, color: 'var(--green)', pct: salary.monthly_allowance > 0 ? 60 : 0 },
-                  { label: 'Monthly Deduction', value: salary.monthly_deduction, color: 'var(--red)', pct: salary.monthly_deduction > 0 ? 40 : 0 },
-                ]
-                return (
-                  <div>
-                    {bars.map(b => (
-                      <div key={b.label} style={{ marginBottom: 18 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.8rem', marginBottom: 6 }}>
-                          <span style={{ color: 'var(--text-2)' }}>{b.label}</span>
-                          <span style={{ fontFamily: 'var(--mono)', fontWeight: 600 }}>{fmt(b.value, salary.currency)}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+            <div className="comp-grid">
+              {/* Compensation breakdown summary */}
+              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: 24 }}>
+                <h3 style={{ marginTop: 0, marginBottom: 16, fontSize: '.95rem', fontWeight: 700 }}>Salary Breakdown</h3>
+                {salary ? (() => {
+                  const monthlyBase = parseFloat(salary.annual_base_salary) / 12
+                  const monthlyAllowance = parseFloat(salary.monthly_allowance)
+                  const monthlyDeduction = parseFloat(salary.monthly_deduction)
+                  const monthlyGross = monthlyBase + monthlyAllowance
+                  const monthlyNet = monthlyGross - monthlyDeduction
+
+                  const netPct = (monthlyNet / monthlyGross) * 100
+                  const deductionPct = (monthlyDeduction / monthlyGross) * 100
+
+                  return (
+                    <div>
+                      {/* Big direct deposit summary */}
+                      <div style={{ marginBottom: 20 }}>
+                        <div style={{ fontSize: '.68rem', color: 'var(--text-3)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.08em' }}>Monthly Take-home Pay</div>
+                        <div style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--green)', fontFamily: 'var(--mono)', marginTop: 4 }}>
+                          {fmt(monthlyNet, salary.currency)}
                         </div>
-                        <div style={{ height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
-                          <div style={{ height: '100%', width: `${b.pct}%`, background: b.color }} />
+                        <div style={{ fontSize: '.75rem', color: 'var(--text-2)', marginTop: 4 }}>
+                          Gross: {fmt(monthlyGross, salary.currency)} &middot; Deductions: {fmt(monthlyDeduction, salary.currency)}
                         </div>
                       </div>
-                    ))}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)', fontSize: '.88rem' }}>
-                      <span style={{ color: 'var(--text-2)', fontWeight: 600 }}>Monthly Net Pay</span>
-                      <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: 'var(--green)' }}>
-                        {fmt(monthlyNet, salary.currency)}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, fontSize: '.8rem', color: 'var(--text-3)' }}>
-                      <span>Joined Date</span>
-                      <span>{fmtDate(emp.joining_date)}</span>
-                    </div>
-                    {emp.termination_date && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: '.8rem', color: 'var(--red)' }}>
-                        <span>Termination Date</span>
-                        <span>{fmtDate(emp.termination_date)}</span>
+
+                      {/* Cohesive segmented visual bar */}
+                      <div style={{ display: 'flex', height: 10, borderRadius: 5, overflow: 'hidden', margin: '20px 0', background: 'var(--border)' }}>
+                        <div style={{ width: `${netPct}%`, background: 'var(--green)' }} title={`Net Take-home: ${netPct.toFixed(1)}%`} />
+                        <div style={{ width: `${deductionPct}%`, background: 'var(--red)' }} title={`Deductions: ${deductionPct.toFixed(1)}%`} />
                       </div>
-                    )}
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 20 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.82rem' }}>
+                          <span style={{ color: 'var(--text-2)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }} /> Monthly Base
+                          </span>
+                          <span style={{ fontFamily: 'var(--mono)', fontWeight: 600 }}>{fmt(monthlyBase, salary.currency)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.82rem' }}>
+                          <span style={{ color: 'var(--text-2)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--green)' }} /> Monthly Allowance
+                          </span>
+                          <span style={{ fontFamily: 'var(--mono)', fontWeight: 600, color: 'var(--green)' }}>+{fmt(monthlyAllowance, salary.currency)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.82rem' }}>
+                          <span style={{ color: 'var(--text-2)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--red)' }} /> Monthly Deduction
+                          </span>
+                          <span style={{ fontFamily: 'var(--mono)', fontWeight: 600, color: 'var(--red)' }}>-{fmt(monthlyDeduction, salary.currency)}</span>
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.78rem', color: 'var(--text-3)' }}>
+                          <span>Joined Date</span>
+                          <span>{fmtDate(emp.joining_date)}</span>
+                        </div>
+                        {emp.termination_date && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.78rem', color: 'var(--red)' }}>
+                            <span>Termination Date</span>
+                            <span>{fmtDate(emp.termination_date)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })() : (
+                  <EmptyState message="No current compensation details available." />
+                )}
+              </div>
+
+              {/* Salary Growth Chart Card */}
+              <div style={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                padding: 24,
+                display: 'flex',
+                flexDirection: 'column',
+                minHeight: 320
+              }}>
+                <h3 style={{ marginTop: 0, marginBottom: 20, fontSize: '.95rem', fontWeight: 700 }}>Compensation Progression</h3>
+                {chartData.length > 0 ? (
+                  <div style={{ flex: 1, minHeight: 220, width: '100%' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="colorBase" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.2} />
+                            <stop offset="95%" stopColor="var(--accent)" stopOpacity={0} />
+                          </linearGradient>
+                          <linearGradient id="colorPackage" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="var(--green)" stopOpacity={0.2} />
+                            <stop offset="95%" stopColor="var(--green)" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                        <XAxis dataKey="date" stroke="var(--text-3)" fontSize={11} tickLine={false} />
+                        <YAxis
+                          stroke="var(--text-3)"
+                          fontSize={11}
+                          tickLine={false}
+                          axisLine={false}
+                          width={45}
+                          tickFormatter={(v) => {
+                            const val = parseFloat(v);
+                            if (val >= 1.0e9) return `$${(val / 1.0e9).toFixed(1).replace(/\.0$/, '')}B`;
+                            if (val >= 1.0e6) return `$${(val / 1.0e6).toFixed(1).replace(/\.0$/, '')}M`;
+                            if (val >= 1.0e3) return `$${(val / 1.0e3).toFixed(1).replace(/\.0$/, '')}K`;
+                            return `$${val}`;
+                          }}
+                        />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Area type="monotone" name="Total Package" dataKey="Total Package" stroke="var(--green)" fillOpacity={1} fill="url(#colorPackage)" strokeWidth={2} />
+                        <Area type="monotone" name="Base Salary" dataKey="Base Salary" stroke="var(--accent)" fillOpacity={1} fill="url(#colorBase)" strokeWidth={2} />
+                      </AreaChart>
+                    </ResponsiveContainer>
                   </div>
-                )
-              })() : (
-                <EmptyState message="No current compensation details available." />
-              )}
+                ) : (
+                  <EmptyState message="No progression data available." />
+                )}
+              </div>
             </div>
 
-            {/* Salary Revision History */}
+            {/* Salary Revision History Table */}
             <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: '1px solid var(--border)' }}>
-                <h3 style={{ margin: 0, fontSize: '.95rem', fontWeight: 700 }}>Revision History (SCD Type 2)</h3>
+                <h3 style={{ margin: 0, fontSize: '.95rem', fontWeight: 700 }}>Revision History</h3>
                 <button className="btn btn-primary btn-sm" onClick={() => setShowRevisionModal(true)}>
                   <Plus size={13} style={{ marginRight: 6 }} /> New Revision
                 </button>
@@ -274,29 +446,46 @@ export default function EmployeeDetail({ empId, onBack }) {
                         <th>Annual Base</th>
                         <th>Allowance</th>
                         <th>Deduction</th>
+                        <th>Raise Growth</th>
                         <th>Effective From</th>
                         <th>Effective To</th>
                         <th>Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {revisions.map(rev => (
-                        <tr key={rev.id}>
-                          <td className="cell-mono" style={{ color: 'var(--text-3)' }}>#{rev.revision_number}</td>
-                          <td className="cell-mono">{fmt(rev.annual_base_salary, rev.currency)}</td>
-                          <td className="cell-mono" style={{ color: 'var(--green)' }}>{fmt(rev.monthly_allowance, rev.currency)}</td>
-                          <td className="cell-mono" style={{ color: 'var(--red)' }}>{fmt(rev.monthly_deduction, rev.currency)}</td>
-                          <td>{fmtDate(rev.effective_from)}</td>
-                          <td style={{ color: 'var(--text-3)' }}>{rev.effective_to ? fmtDate(rev.effective_to) : '—'}</td>
-                          <td>
-                            {rev.is_current ? (
-                              <span className="badge badge-green"><CheckCircle size={10} style={{ marginRight: 4 }} /> Active</span>
-                            ) : (
-                              <span className="badge badge-gray">Historical</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                      {displayRevisions.map(rev => {
+                        let raiseBadge = null
+                        if (rev.raisePercent !== null) {
+                          const isPositive = rev.raisePercent >= 0
+                          const color = isPositive ? 'var(--green)' : 'var(--red)'
+                          const sign = isPositive ? '+' : ''
+                          raiseBadge = (
+                            <span style={{ color, fontWeight: 600, fontSize: '.78rem' }}>
+                              {sign}{rev.raisePercent.toFixed(1)}%
+                            </span>
+                          )
+                        } else {
+                          raiseBadge = <span style={{ color: 'var(--text-3)', fontSize: '.78rem' }}>Hire Rate</span>
+                        }
+                        return (
+                          <tr key={rev.id}>
+                            <td className="cell-mono" style={{ color: 'var(--text-3)' }}>#{rev.revision_number}</td>
+                            <td className="cell-mono">{fmt(rev.annual_base_salary, rev.currency)}</td>
+                            <td className="cell-mono" style={{ color: 'var(--green)' }}>{fmt(rev.monthly_allowance, rev.currency)}</td>
+                            <td className="cell-mono" style={{ color: 'var(--red)' }}>{fmt(rev.monthly_deduction, rev.currency)}</td>
+                            <td>{raiseBadge}</td>
+                            <td>{fmtDate(rev.effective_from)}</td>
+                            <td style={{ color: 'var(--text-3)' }}>{rev.effective_to ? fmtDate(rev.effective_to) : '—'}</td>
+                            <td>
+                              {rev.is_current ? (
+                                <span className="badge badge-green"><CheckCircle size={10} style={{ marginRight: 4 }} /> Active</span>
+                              ) : (
+                                <span className="badge badge-gray">Historical</span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -307,7 +496,7 @@ export default function EmployeeDetail({ empId, onBack }) {
 
         {/* Tab content: Payroll History */}
         {activeTab === 'payroll' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 32, alignItems: 'start' }}>
+          <div className="payroll-grid">
             {/* History Table */}
             <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
               <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)' }}>
