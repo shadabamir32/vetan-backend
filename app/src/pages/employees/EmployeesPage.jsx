@@ -192,28 +192,30 @@ export default function EmployeesPage({ onSelectEmployee }) {
             }}>Clear filters</button>
           )}
 
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={() => refetch()}
-            disabled={isFetching}
-            title="Refresh data"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}
-          >
-            <RotateCw size={13} className={isFetching ? 'spin' : ''} />
-            <span>Refresh</span>
-          </button>
+          <div className="filter-actions">
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              title="Refresh data"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              <RotateCw size={13} className={isFetching ? 'spin' : ''} />
+              <span>Refresh</span>
+            </button>
 
-          {/* Export CSV Button */}
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={handleExportCSV}
-            disabled={isExporting || total === 0}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginLeft: 12 }}
-            title="Export Employee Directory to CSV"
-          >
-            <Download size={13} />
-            <span>{isExporting ? 'Exporting…' : 'Export CSV'}</span>
-          </button>
+            {/* Export CSV Button */}
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={handleExportCSV}
+              disabled={isExporting || total === 0}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              title="Export Employee Directory to CSV"
+            >
+              <Download size={13} />
+              <span>{isExporting ? 'Exporting…' : 'Export CSV'}</span>
+            </button>
+          </div>
         </div>
       </div>
 
