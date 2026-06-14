@@ -57,40 +57,44 @@ function StatCard({ label, value, sub, variant, icon: Icon }) {
 }
 
 export default function DashboardPage({ isActive }) {
-  const { data: stats, isLoading: sl } = useQuery({
+  // Queries run sequentially (each waits for the previous to succeed) to avoid
+  // simultaneous SQLite connections which cause lock contention in Docker/WSL2.
+  // Sequential: ~150ms × 6 ≈ 900ms total vs ~6s when all fire at once.
+
+  const { data: stats, isLoading: sl, isSuccess: statsOk } = useQuery({
     queryKey: ['analytics-stats'],
     queryFn: () => getAnalyticsStats().then(r => r.data),
     enabled: !!isActive
   })
-  
-  const { data: depts = [], isLoading: dl } = useQuery({
+
+  const { data: depts = [], isLoading: dl, isSuccess: deptsOk } = useQuery({
     queryKey: ['analytics-depts'],
     queryFn: () => getAnalyticsDepartments().then(r => r.data),
-    enabled: !!isActive
+    enabled: !!isActive && statsOk
   })
-  
-  const { data: countries = [], isLoading: cl } = useQuery({
+
+  const { data: countries = [], isLoading: cl, isSuccess: countriesOk } = useQuery({
     queryKey: ['analytics-countries'],
     queryFn: () => getAnalyticsCountries().then(r => r.data),
-    enabled: !!isActive
+    enabled: !!isActive && deptsOk
   })
-  
-  const { data: distribution = [], isLoading: dil } = useQuery({
+
+  const { data: distribution = [], isLoading: dil, isSuccess: distOk } = useQuery({
     queryKey: ['analytics-distribution'],
     queryFn: () => getAnalyticsDistribution().then(r => r.data),
-    enabled: !!isActive
+    enabled: !!isActive && countriesOk
   })
-  
-  const { data: extremes, isLoading: el } = useQuery({
+
+  const { data: extremes, isLoading: el, isSuccess: extremesOk } = useQuery({
     queryKey: ['analytics-extremes'],
     queryFn: () => getAnalyticsExtremeSalaries().then(r => r.data),
-    enabled: !!isActive
+    enabled: !!isActive && distOk
   })
 
   const { data: audit, isLoading: al } = useQuery({
     queryKey: ['analytics-audit'],
     queryFn: () => getAnalyticsSalaryAudit().then(r => r.data),
-    enabled: !!isActive
+    enabled: !!isActive && extremesOk
   })
 
   const loading = sl || dl || cl || dil || el || al
@@ -149,7 +153,7 @@ export default function DashboardPage({ isActive }) {
                 <h3>Average Salary by Department</h3>
                 <ResponsiveContainer width="100%" height={260}>
                   <BarChart data={depts.slice(0, 10)} layout="vertical" margin={{ left: 8, right: 24, top: 0, bottom: 0 }}>
-                    <XAxis type="number" tickFormatter={v => `$${(v/1000).toFixed(0)}K`} tick={{ fill: 'var(--text-3)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <XAxis type="number" tickFormatter={v => `$${(v / 1000).toFixed(0)}K`} tick={{ fill: 'var(--text-3)', fontSize: 11 }} axisLine={false} tickLine={false} />
                     <YAxis type="category" dataKey="department" width={110} tick={{ fill: 'var(--text-2)', fontSize: 11 }} axisLine={false} tickLine={false} />
                     <Tooltip contentStyle={TIP_STYLE} itemStyle={TIP_ITEM_STYLE} labelStyle={TIP_LABEL_STYLE} formatter={(v) => [fmt(v), 'Avg Salary']} />
                     <Bar dataKey="avg_salary" radius={[0, 4, 4, 0]}>
