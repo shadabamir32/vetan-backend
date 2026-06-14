@@ -46,6 +46,7 @@ class PayrollRunResponse(BaseModel):
     payroll_year: int
     status: int
     run_at: datetime
+    message: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

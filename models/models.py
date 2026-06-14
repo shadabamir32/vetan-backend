@@ -80,8 +80,9 @@ class PayrollRun(Base):
     tenant_id = Column(Uuid(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
     payroll_month = Column(Integer, nullable=False)
     payroll_year = Column(Integer, nullable=False)
-    status = Column(Integer, nullable=False, default=1)  # 1 = Draft, 2 = Processed
+    status = Column(Integer, nullable=False, default=0)  # 0 = Pending, 1 = In Progress, 2 = Processed, 4 = Failure
     run_at = Column(DateTime, default=datetime.utcnow)
+    message = Column(String, nullable=True)
 
     tenant = relationship("Tenant", back_populates="payroll_runs")
     payroll_records = relationship("PayrollRecord", back_populates="payroll_run", cascade="all, delete-orphan")
