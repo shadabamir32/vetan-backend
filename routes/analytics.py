@@ -14,7 +14,9 @@ from schemas.analytics import (
     CountryBreakdown,
     SalaryBandDistribution,
     ExtremeSalariesResponse,
-    ExtremeEmployeeSalary
+    ExtremeEmployeeSalary,
+    AuditEmployee,
+    SalaryAuditResponse
 )
 from dependencies.api_key_validator import api_key_validator
 
@@ -287,6 +289,104 @@ def get_extreme_salaries(db: Session = Depends(get_db), api_key: UUID = Depends(
         return ExtremeSalariesResponse(
             highest_paid=highest,
             lowest_paid=lowest
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analytics error: {str(e)}")
+
+
+@router.get("/salary-audit", response_model=SalaryAuditResponse)
+def get_salary_audit(db: Session = Depends(get_db), api_key: UUID = Depends(api_key_validator)):
+    """
+    Returns active employees categorized under pay equity concerns (Compa-Ratio < 0.85)
+    and overdue salary reviews (days since last revision > 365).
+    """
+    from datetime import date
+    try:
+        records = (
+            db.query(
+                Employee.id,
+                Employee.employee_code,
+                Employee.first_name,
+                Employee.last_name,
+                Department.name.label("department_name"),
+                Employee.country,
+                SalaryRevision.annual_base_salary,
+                SalaryRevision.currency,
+                SalaryRevision.effective_from
+            )
+            .outerjoin(Department, Employee.department_id == Department.id)
+            .join(SalaryRevision, Employee.id == SalaryRevision.employee_id)
+            .filter(
+                Employee.tenant_id == api_key,
+                Employee.status == 1,
+                SalaryRevision.is_current == True
+            )
+            .all()
+        )
+
+        # 1. Group active salaries to compute departmental averages in USD equivalents
+        dept_salaries = {}
+        for r in records:
+            dept = r.department_name or "Unassigned"
+            rate = EXCHANGE_RATES.get(r.currency, 1.0)
+            sal_usd = float(r.annual_base_salary) * rate
+            if dept not in dept_salaries:
+                dept_salaries[dept] = []
+            dept_salaries[dept].append(sal_usd)
+
+        dept_averages = {}
+        for dept, sals in dept_salaries.items():
+            dept_averages[dept] = sum(sals) / len(sals) if sals else 0.0
+
+        # 2. Auditing employees
+        today = date.today()
+        underpaid = []
+        overdue = []
+
+        for r in records:
+            rate = EXCHANGE_RATES.get(r.currency, 1.0)
+            sal_usd = float(r.annual_base_salary) * rate
+            dept = r.department_name or "Unassigned"
+            dept_avg = dept_averages.get(dept, 0.0)
+
+            # Compa Ratio
+            compa_ratio = (sal_usd / dept_avg) if dept_avg > 0 else 1.0
+
+            # Time since revision
+            rev_date = r.effective_from
+            days_since = (today - rev_date).days if rev_date else 0
+
+            emp_audit = AuditEmployee(
+                id=str(r.id),
+                employee_code=r.employee_code,
+                first_name=r.first_name,
+                last_name=r.last_name,
+                department_name=dept,
+                salary=float(r.annual_base_salary),
+                currency=r.currency,
+                salary_usd=sal_usd,
+                compa_ratio=round(compa_ratio, 2),
+                department_avg=round(dept_avg, 2),
+                last_revision_date=str(rev_date) if rev_date else "",
+                days_since_revision=days_since
+            )
+
+            # Underpaid check: less than 85% of department average
+            if compa_ratio < 0.85:
+                underpaid.append(emp_audit)
+
+            # Overdue review check: last revision effective date was > 365 days ago
+            if days_since > 365:
+                overdue.append(emp_audit)
+
+        # Sort underpaid by compa_ratio ascending (lowest ratio first)
+        underpaid.sort(key=lambda x: x.compa_ratio)
+        # Sort overdue by days_since_revision descending (most overdue first)
+        overdue.sort(key=lambda x: x.days_since_revision, reverse=True)
+
+        return SalaryAuditResponse(
+            underpaid_employees=underpaid,
+            overdue_reviews=overdue
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Analytics error: {str(e)}")
