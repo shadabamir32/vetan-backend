@@ -1,0 +1,31 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - db-data:/data
+    env_file:
+      - .env
+    environment:
+      - DB_DATABASE=/data/salaryapp.db
+    restart: always
+
+  frontend:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:8000/api/v1}
+        - VITE_API_KEY=${VITE_API_KEY}
+        - VITE_TENANT_NAME=${VITE_TENANT_NAME}
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: always
+
+volumes:
+  db-data:
