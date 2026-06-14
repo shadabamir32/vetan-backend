@@ -262,11 +262,24 @@ def get_extreme_salaries(db: Session = Depends(get_db), api_key: UUID = Depends(
             .all()
         )
 
-        all_records = []
+        # Calculate lightweight USD salaries and keep references to raw records
+        temp_list = []
         for r in records:
             rate = EXCHANGE_RATES.get(r.currency, 1.0)
             sal_usd = float(r.annual_base_salary) * rate
-            all_records.append(ExtremeEmployeeSalary(
+            temp_list.append((sal_usd, r))
+
+        # Sort by USD salary descending
+        temp_list.sort(key=lambda x: x[0], reverse=True)
+
+        # Take top 5 and bottom 5 (lowest paid first for lowest)
+        highest_raw = temp_list[:5]
+        lowest_raw = temp_list[-5:]
+        lowest_raw.reverse() # Sort ascending for lowest paid
+
+        def to_pydantic(item):
+            sal_usd, r = item
+            return ExtremeEmployeeSalary(
                 id=str(r.id),
                 employee_code=r.employee_code,
                 first_name=r.first_name,
@@ -276,15 +289,10 @@ def get_extreme_salaries(db: Session = Depends(get_db), api_key: UUID = Depends(
                 salary=float(r.annual_base_salary),
                 currency=r.currency,
                 salary_usd=sal_usd
-            ))
+            )
 
-        # Sort by USD salary descending
-        all_records.sort(key=lambda x: x.salary_usd, reverse=True)
-
-        highest = all_records[:5]
-        # Sort ascending for lowest paid, take top 5
-        lowest_sorted = sorted(all_records, key=lambda x: x.salary_usd)
-        lowest = lowest_sorted[:5]
+        highest = [to_pydantic(item) for item in highest_raw]
+        lowest = [to_pydantic(item) for item in lowest_raw]
 
         return ExtremeSalariesResponse(
             highest_paid=highest,
@@ -340,8 +348,8 @@ def get_salary_audit(db: Session = Depends(get_db), api_key: UUID = Depends(api_
 
         # 2. Auditing employees
         today = date.today()
-        underpaid = []
-        overdue = []
+        underpaid_raw = []
+        overdue_raw = []
 
         for r in records:
             rate = EXCHANGE_RATES.get(r.currency, 1.0)
@@ -356,7 +364,30 @@ def get_salary_audit(db: Session = Depends(get_db), api_key: UUID = Depends(api_
             rev_date = r.effective_from
             days_since = (today - rev_date).days if rev_date else 0
 
-            emp_audit = AuditEmployee(
+            # Underpaid check: less than 85% of department average
+            is_underpaid = compa_ratio < 0.85
+            # Overdue review check: last revision effective date was > 365 days ago
+            is_overdue = days_since > 365
+
+            if is_underpaid:
+                underpaid_raw.append((compa_ratio, r, sal_usd, dept_avg, days_since))
+            if is_overdue:
+                overdue_raw.append((days_since, r, sal_usd, dept_avg, days_since))
+
+        # Sort underpaid by compa_ratio ascending (lowest ratio first)
+        underpaid_raw.sort(key=lambda x: x[0])
+        # Sort overdue by days_since descending (most overdue first)
+        overdue_raw.sort(key=lambda x: x[0], reverse=True)
+
+        # Slice to top 100 to avoid massive serialization overhead
+        underpaid_sliced = underpaid_raw[:100]
+        overdue_sliced = overdue_raw[:100]
+
+        def to_audit_pydantic(item):
+            _, r, sal_usd, dept_avg, days_since = item
+            dept = r.department_name or "Unassigned"
+            compa_ratio = (sal_usd / dept_avg) if dept_avg > 0 else 1.0
+            return AuditEmployee(
                 id=str(r.id),
                 employee_code=r.employee_code,
                 first_name=r.first_name,
@@ -367,22 +398,12 @@ def get_salary_audit(db: Session = Depends(get_db), api_key: UUID = Depends(api_
                 salary_usd=sal_usd,
                 compa_ratio=round(compa_ratio, 2),
                 department_avg=round(dept_avg, 2),
-                last_revision_date=str(rev_date) if rev_date else "",
+                last_revision_date=str(r.effective_from) if r.effective_from else "",
                 days_since_revision=days_since
             )
 
-            # Underpaid check: less than 85% of department average
-            if compa_ratio < 0.85:
-                underpaid.append(emp_audit)
-
-            # Overdue review check: last revision effective date was > 365 days ago
-            if days_since > 365:
-                overdue.append(emp_audit)
-
-        # Sort underpaid by compa_ratio ascending (lowest ratio first)
-        underpaid.sort(key=lambda x: x.compa_ratio)
-        # Sort overdue by days_since_revision descending (most overdue first)
-        overdue.sort(key=lambda x: x.days_since_revision, reverse=True)
+        underpaid = [to_audit_pydantic(x) for x in underpaid_sliced]
+        overdue = [to_audit_pydantic(x) for x in overdue_sliced]
 
         return SalaryAuditResponse(
             underpaid_employees=underpaid,
