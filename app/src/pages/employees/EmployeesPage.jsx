@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Search, Plus, ChevronUp, ChevronDown, ChevronsUpDown, RotateCw } from 'lucide-react'
+import { Search, Plus, ChevronUp, ChevronDown, ChevronsUpDown, RotateCw, Download } from 'lucide-react'
 import { getEmployees, getDepartments, getCountries } from '../../api'
 import { fmt, fmtDate, statusLabel, statusBadge } from '../../utils'
 import Pagination from '../../components/Pagination'
@@ -8,6 +8,7 @@ import StatusBadge from '../../components/StatusBadge'
 import EmptyState from '../../components/EmptyState'
 import EmployeeModal from './EmployeeModal'
 import EmployeeDetail from './EmployeeDetail'
+import { useToast } from '../../Toast'
 
 const PAGE_SIZE = 20
 
@@ -17,6 +18,7 @@ function SortIcon({ col, current, dir }) {
 }
 
 export default function EmployeesPage({ onSelectEmployee }) {
+  const toast = useToast()
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [country, setCountry] = useState('')
@@ -24,6 +26,96 @@ export default function EmployeesPage({ onSelectEmployee }) {
   const [departmentId, setDepartmentId] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editEmp, setEditEmp] = useState(null)
+  const [isExporting, setIsExporting] = useState(false)
+
+  const handleExportCSV = async () => {
+    try {
+      setIsExporting(true)
+      
+      const checkParams = { page: 1, limit: 1 }
+      if (search) checkParams.search = search
+      if (country) checkParams.country = country
+      if (status !== '') checkParams.status = parseInt(status)
+      if (departmentId) checkParams.department_id = departmentId
+
+      const checkRes = await getEmployees(checkParams)
+      const totalCount = checkRes.data?.total || 0
+      
+      if (totalCount === 0) {
+        toast('No employees match the filters to export.', 'error')
+        return
+      }
+
+      const exportParams = {
+        page: 1,
+        limit: totalCount
+      }
+      if (search) exportParams.search = search
+      if (country) exportParams.country = country
+      if (status !== '') exportParams.status = parseInt(status)
+      if (departmentId) exportParams.department_id = departmentId
+
+      const response = await getEmployees(exportParams)
+      const allRecords = response.data?.data || []
+
+      const headers = [
+        'Employee ID',
+        'Employee Code',
+        'First Name',
+        'Last Name',
+        'Email',
+        'Department',
+        'Country',
+        'Status',
+        'Annual Base Salary',
+        'Monthly Allowance',
+        'Monthly Deduction',
+        'Salary Currency',
+        'Joining Date',
+        'Termination Date'
+      ]
+
+      const csvRows = [headers.join(',')]
+
+      allRecords.forEach(emp => {
+        const sal = emp.current_salary || {}
+        const row = [
+          emp.id,
+          emp.employee_code,
+          emp.first_name,
+          emp.last_name,
+          emp.email,
+          emp.department_name || '',
+          emp.country,
+          emp.status === 1 ? 'Active' : 'Inactive',
+          sal.annual_base_salary || '0',
+          sal.monthly_allowance || '0',
+          sal.monthly_deduction || '0',
+          sal.currency || '',
+          emp.joining_date || '',
+          emp.termination_date || ''
+        ].map(field => `"${String(field || '').replace(/"/g, '""')}"`)
+        csvRows.push(row.join(','))
+      })
+
+      const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.setAttribute('href', url)
+      link.setAttribute('download', `employee_directory_${new Date().toISOString().split('T')[0]}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      toast('Employee directory exported successfully.', 'success')
+    } catch (err) {
+      console.error(err)
+      toast('Failed to export employee directory.', 'error')
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   // Fetch master data for filtering
   const { data: departments = [] } = useQuery({
@@ -109,6 +201,18 @@ export default function EmployeesPage({ onSelectEmployee }) {
           >
             <RotateCw size={13} className={isFetching ? 'spin' : ''} />
             <span>Refresh</span>
+          </button>
+
+          {/* Export CSV Button */}
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={handleExportCSV}
+            disabled={isExporting || total === 0}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginLeft: 12 }}
+            title="Export Employee Directory to CSV"
+          >
+            <Download size={13} />
+            <span>{isExporting ? 'Exporting…' : 'Export CSV'}</span>
           </button>
         </div>
       </div>
