@@ -251,11 +251,37 @@ def test_run_payroll_duplicate_run(
     # Run first time
     response = client.post("/api/v1/payroll/run", json=payload, headers=headers)
     assert response.status_code == 201
+    
+    # Wait, Starlette's TestClient runs background tasks synchronously. So the run is already status 2.
+    run = db_session.query(PayrollRun).filter(
+        PayrollRun.tenant_id == default_tenant.id,
+        PayrollRun.payroll_month == 6,
+        PayrollRun.payroll_year == 2026
+    ).first()
+    assert run is not None
+    assert run.status == 2
 
-    # Run second time - should be blocked as it is already processed (2)
+    # Run second time - should be allowed to re-queue since status is Processed (2)
+    response = client.post("/api/v1/payroll/run", json=payload, headers=headers)
+    assert response.status_code == 201
+
+    # Manually change the status to In Progress (1) in DB to test blocking
+    run.status = 1
+    db_session.commit()
+
+    # Try running again - should be blocked with 400 (In Progress)
     response = client.post("/api/v1/payroll/run", json=payload, headers=headers)
     assert response.status_code == 400
-    assert "Payroll run is currently" in response.json()["detail"] or "already been processed" in response.json()["detail"]
+    assert "Payroll run is currently in progress" in response.json()["detail"]
+
+    # Manually change the status to Pending (0) in DB to test blocking
+    run.status = 0
+    db_session.commit()
+
+    # Try running again - should be blocked with 400 (Pending)
+    response = client.post("/api/v1/payroll/run", json=payload, headers=headers)
+    assert response.status_code == 400
+    assert "Payroll run is already queued and pending" in response.json()["detail"]
 
 
 def test_run_payroll_no_eligible_employees(

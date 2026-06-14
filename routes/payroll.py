@@ -184,14 +184,18 @@ def run_payroll(
         .first()
     )
     if existing_run:
-        if existing_run.status in (0, 1, 2):
-            status_names = {0: "Pending", 1: "In Progress", 2: "Processed"}
+        if existing_run.status == 1:
             raise HTTPException(
                 status_code=400,
-                detail=f"Payroll run is currently {status_names.get(existing_run.status)} or has already been processed."
+                detail="Payroll run is currently in progress."
             )
-        elif existing_run.status == 4:
-            # Re-queue failed run: reset status to Pending (0)
+        elif existing_run.status == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Payroll run is already queued and pending."
+            )
+        elif existing_run.status in (2, 4):
+            # Re-queue processed or failed run: reset status to Pending (0)
             existing_run.status = 0
             existing_run.run_at = datetime.utcnow()
             db.commit()
