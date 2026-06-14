@@ -14,7 +14,8 @@ from schemas.payroll import (
     PayrollRunCreate,
     PayrollRunResponse,
     PayrollRecordResponse,
-    PayrollRunDetailsResponse
+    PayrollRunDetailsResponse,
+    PaginatedPayrollRunsResponse
 )
 from dependencies.api_key_validator import api_key_validator
 
@@ -224,22 +225,53 @@ def run_payroll(
         )
 
 
-@router.get("/runs", response_model=list[PayrollRunResponse])
+@router.get("/runs", response_model=PaginatedPayrollRunsResponse)
 def get_payroll_runs(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    payroll_month: Optional[int] = Query(None, ge=1, le=12),
+    payroll_year: Optional[int] = Query(None, ge=2000),
+    status: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     api_key: UUID = Depends(api_key_validator)
 ):
     """
-    Retrieve history of all payroll runs for the active tenant.
+    Retrieve history of all payroll runs for the active tenant (paginated and filterable).
     """
     try:
+        query = db.query(PayrollRun).filter(PayrollRun.tenant_id == api_key)
+
+        # Apply month filter
+        if payroll_month is not None:
+            query = query.filter(PayrollRun.payroll_month == payroll_month)
+
+        # Apply year filter
+        if payroll_year is not None:
+            query = query.filter(PayrollRun.payroll_year == payroll_year)
+
+        # Apply status filter
+        if status is not None:
+            query = query.filter(PayrollRun.status == status)
+
+        total = query.count()
+        pages = (total + limit - 1) // limit if total > 0 else 1
+        offset = (page - 1) * limit
+
         runs = (
-            db.query(PayrollRun)
-            .filter(PayrollRun.tenant_id == api_key)
+            query
             .order_by(PayrollRun.run_at.desc())
+            .offset(offset)
+            .limit(limit)
             .all()
         )
-        return runs
+
+        return PaginatedPayrollRunsResponse(
+            total=total,
+            page=page,
+            limit=limit,
+            pages=pages,
+            data=runs
+        )
     except Exception as e:
         raise HTTPException(
             status_code=500,

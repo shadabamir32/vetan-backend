@@ -62,3 +62,12 @@ class PayrollRunDetailsResponse(PayrollRunResponse):
     records: List[PayrollRecordResponse]
 
     model_config = ConfigDict(from_attributes=True)
+
+class PaginatedPayrollRunsResponse(BaseModel):
+    total: int
+    page: int
+    limit: int
+    pages: int
+    data: List[PayrollRunResponse]
+
+    model_config = ConfigDict(from_attributes=True)
