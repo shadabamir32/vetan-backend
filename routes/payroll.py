@@ -78,6 +78,7 @@ def process_payroll_in_background(payroll_run_id: UUID, api_key: UUID, max_retri
                     break
 
                 has_employees = True
+                records_to_insert = []
 
                 # Process this chunk
                 for employee in eligible_employees:
@@ -114,8 +115,11 @@ def process_payroll_in_background(payroll_run_id: UUID, api_key: UUID, max_retri
                         currency=active_revision.currency,
                         created_at=datetime.utcnow()
                     )
-                    db.add(payroll_record)
+                    records_to_insert.append(payroll_record)
                     processed_count += 1
+
+                if records_to_insert:
+                    db.bulk_save_objects(records_to_insert)
 
                 offset += chunk_size
 
