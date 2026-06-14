@@ -74,14 +74,18 @@ class DatabaseManager:
 
             engine_args = {}
             if driver == "sqlite":
-                engine_args["connect_args"] = {"check_same_thread": False}
                 db_path = config.get("database", "salaryapp.db")
                 if db_path == ":memory:":
                     from sqlalchemy.pool import StaticPool
+                    engine_args["connect_args"] = {"check_same_thread": False}
                     engine_args["poolclass"] = StaticPool
                 else:
-                    engine_args["pool_size"] = 20
-                    engine_args["max_overflow"] = 40
+                    # SQLite does not support connection pooling — use NullPool
+                    # (one connection per request) to avoid file lock contention,
+                    # especially critical when running under Docker / multi-threaded uvicorn.
+                    from sqlalchemy.pool import NullPool
+                    engine_args["connect_args"] = {"check_same_thread": False}
+                    engine_args["poolclass"] = NullPool
             elif driver == "mysql":
                 engine_args["pool_size"] = 20
                 engine_args["max_overflow"] = 40
