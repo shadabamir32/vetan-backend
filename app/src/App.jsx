@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react'
-import { Users, Receipt } from 'lucide-react'
+import { Users, Receipt, LayoutDashboard } from 'lucide-react'
 import { ToastProvider } from './Toast'
 import EmployeesPage from './pages/employees/EmployeesPage'
 import EmployeeDetail from './pages/employees/EmployeeDetail'
 import PayrollRunsPage from './pages/payroll/PayrollRunsPage'
 import PayrollRunDetail from './pages/payroll/PayrollRunDetail'
+import DashboardPage from './pages/dashboard/DashboardPage'
 import './App.css'
 
 const TENANT_NAME = import.meta.env.VITE_TENANT_NAME || 'Vetan'
 
 const NAV = [
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'employees', label: 'Employees', icon: Users },
   { id: 'payroll', label: 'Payroll', icon: Receipt },
 ]
@@ -36,7 +38,10 @@ export default function App() {
     if (path === '#/payroll') {
       return { page: 'payroll', selectedEmpId: null, selectedRunId: null, backRoute: back }
     }
-    return { page: 'employees', selectedEmpId: null, selectedRunId: null, backRoute: null }
+    if (path === '#/employees') {
+      return { page: 'employees', selectedEmpId: null, selectedRunId: null, backRoute: back }
+    }
+    return { page: 'dashboard', selectedEmpId: null, selectedRunId: null, backRoute: null }
   })
 
   useEffect(() => {
@@ -64,12 +69,16 @@ export default function App() {
         setRoute({ page: 'payroll', selectedEmpId: null, selectedRunId: null, backRoute: back })
         return
       }
+      if (path === '#/employees') {
+        setRoute({ page: 'employees', selectedEmpId: null, selectedRunId: null, backRoute: back })
+        return
+      }
       // Fallback
-      setRoute({ page: 'employees', selectedEmpId: null, selectedRunId: null, backRoute: null })
+      setRoute({ page: 'dashboard', selectedEmpId: null, selectedRunId: null, backRoute: null })
     }
 
     if (!window.location.hash) {
-      window.location.hash = '#/employees'
+      window.location.hash = '#/'
     }
 
     window.addEventListener('hashchange', handleHashChange)
@@ -77,7 +86,13 @@ export default function App() {
   }, [])
 
   const handleNavClick = (id) => {
-    window.location.hash = id === 'employees' ? '#/employees' : '#/payroll'
+    if (id === 'employees') {
+      window.location.hash = '#/employees'
+    } else if (id === 'payroll') {
+      window.location.hash = '#/payroll'
+    } else {
+      window.location.hash = '#/'
+    }
   }
 
   return (
@@ -107,6 +122,11 @@ export default function App() {
           <div className="sidebar-footer">v1.0 · {TENANT_NAME}</div>
         </aside>
         <main className="main-content">
+          {/* Main dashboard list (preserved state) */}
+          <div style={{ display: route.page === 'dashboard' ? 'contents' : 'none' }}>
+            <DashboardPage />
+          </div>
+
           {/* Main employees list (preserved state) */}
           <div style={{ display: route.page === 'employees' && !route.selectedEmpId ? 'contents' : 'none' }}>
             <EmployeesPage onSelectEmployee={(id) => { window.location.hash = `#/employees/${id}` }} />
@@ -123,7 +143,7 @@ export default function App() {
                   window.location.hash = '#/employees'
                 }
               }}
-              backLabel={route.backRoute?.startsWith('payroll/') ? 'Back to Payroll Details' : 'Back to Employees'}
+              backLabel={route.backRoute === 'dashboard' ? 'Back to Dashboard' : route.backRoute?.startsWith('payroll/') ? 'Back to Payroll Details' : 'Back to Employees'}
             />
           )}
 

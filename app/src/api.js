@@ -31,4 +31,12 @@ export const runPayroll = (data) => api.post('/payroll/run', data)
 export const getDepartments = () => api.get('/master/departments')
 export const getCountries = () => api.get('/master/countries')
 
+// ─── Analytics endpoints ──────────────────────────────────────────────────────
+export const getAnalyticsStats = () => api.get('/analytics/stats')
+export const getAnalyticsDepartments = () => api.get('/analytics/departments')
+export const getAnalyticsCountries = () => api.get('/analytics/countries')
+export const getAnalyticsDistribution = () => api.get('/analytics/salary-distribution')
+export const getAnalyticsExtremeSalaries = () => api.get('/analytics/extreme-salaries')
+export const getAnalyticsSalaryAudit = () => api.get('/analytics/salary-audit')
+
 export default api

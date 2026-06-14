@@ -108,3 +108,9 @@ export const DEPARTMENTS = [
   'Operations',
   'Customer Support',
 ]
+
+export const DEPT_COLORS = [
+  '#4f8ef7','#34d399','#fbbf24','#f97316','#e879f9',
+  '#f87171','#38bdf8','#a78bfa','#fb7185','#4ade80',
+  '#facc15','#34d399','#60a5fa','#c084fc','#f472b6',
+]
