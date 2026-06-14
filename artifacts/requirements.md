@@ -1,4 +1,4 @@
-# PeopleComp — Salary & Payroll Management Platform
+# Vetan — Salary & Payroll Management Platform
 
 ### Requirements Document v1.0
 
@@ -179,67 +179,62 @@ The following features are intentionally excluded from v1.0:
 
 ```text
 ┌────────────────────────────┐       ┌──────────────────────────────┐
-│      Next.js Frontend      │  HTTP │        FastAPI Backend       │
+│   React + Vite Frontend    │  HTTP │        FastAPI Backend       │
 │  ──────────────────────    │◄─────►│  ──────────────────────────  │
-│  React Query              │       │  SQLAlchemy ORM             │
-│  Material UI              │       │  Pydantic Validation        │
-│  Recharts                 │       │  SQLite Database            │
+│  TanStack Query            │       │  SQLAlchemy ORM             │
+│  Vanilla CSS               │       │  Pydantic Validation        │
+│  Recharts                  │       │  SQLite Database            │
 └────────────────────────────┘       └──────────────────────────────┘
 ```
 
 ### Backend
 
-* Python 3.12
+* Python 3.11+
 * FastAPI
 * SQLAlchemy
 * SQLite
-* Alembic
 * Pydantic
 
 ### Frontend
 
-* Next.js
-* TypeScript
-* Material UI
-* TanStack Query
-* Recharts
+* React + Vite (JavaScript)
+* Vanilla CSS (responsive grids & layouts)
+* TanStack Query (React Query)
+* Recharts (Salary Progression AreaChart)
 
 ### API Surface
 
-Organization APIs
-
-* GET /api/organization
+All API endpoints are versioned and prefixed with `/api/v1`.
 
 Employee APIs
 
-* GET /api/employees
-* POST /api/employees
-* GET /api/employees/{id}
-* PUT /api/employees/{id}
+* GET /api/v1/employees — Paginated employee directory with filters (search, department, country, status)
+* POST /api/v1/employees — Onboard a new employee and create initial salary revision
+* GET /api/v1/employees/{id} — Retrieve detailed profile of an employee
+* PUT /api/v1/employees/{id} — Update employee profile details
+* GET /api/v1/employees/{id}/payroll-history — Retrieve payroll records processed for a single employee
+* POST /api/v1/employees/{id}/run-payroll — Process individual payroll payout for a specific month and year
 
 Salary APIs
 
-* POST /api/employees/{id}/salary-revisions
-* GET /api/employees/{id}/salary-revisions
-* GET /api/employees/{id}/current-salary
+* GET /api/v1/employees/{id}/salary-revisions — Retrieve all historical salary revisions (sorted chronologically)
+* GET /api/v1/employees/{id}/current-salary — Retrieve the active salary revision
+* POST /api/v1/employees/{id}/salary-revisions — Add a new compensation change (SCD Type 2 behavior)
 
 Payroll APIs
 
-* POST /api/payroll/run
-* GET /api/payroll/runs
-* GET /api/payroll/runs/{id}
+* POST /api/v1/payroll/run — Generate/re-run monthly payroll run for all active employees
+* GET /api/v1/payroll/runs — Retrieve list of all historical payroll runs
+* GET /api/v1/payroll/runs/{id} — Retrieve details of a payroll run including compiled aggregates and paginated employee payout records
 
-Reporting APIs
+Master Data APIs
 
-* GET /api/reports/dashboard
-* GET /api/reports/departments
-* GET /api/reports/countries
+* GET /api/v1/master/departments — Retrieve list of departments for the tenant
+* GET /api/v1/master/countries — Retrieve list of supported countries and currencies
 
-Export APIs
+Reporting & Export APIs
 
-* GET /api/exports/employees
-* GET /api/exports/payroll
-* GET /api/exports/salaries
+* *Note: Dashboard reports, visual spend ratios, and CSV register exports are calculated and processed client-side in v1.0 using the core endpoints.*
 
 ---
 
@@ -267,4 +262,4 @@ The generated dataset should resemble a realistic enterprise workforce and suppo
 
 ---
 
-*Document prepared for ACME Corp Salary & Payroll Management Platform — v1.0*
+*Document prepared for ACME Salary & Payroll Management Platform — v1.0*
