@@ -7,7 +7,7 @@ from clients.database import get_db
 from routes import employees, salaries, payroll
 
 app = FastAPI(
-    title="Vetan Salary & Payroll Backend",
+    title="Vetan Backend APIs",
     description="Salary and Payroll management API backend.",
     version="1.0.0"
 )
