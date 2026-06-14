@@ -24,7 +24,7 @@ app.add_middleware(
 # Register routers under version v1
 app.include_router(employees.router, prefix="/api/v1")
 
-@app.get("/api/v1/health", tags=["Health"])
+@app.get("/api/health", tags=["Health"])
 def health_check(db: Session = Depends(get_db)):
     """
     Service and database health check endpoint.

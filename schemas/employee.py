@@ -31,7 +31,7 @@ class EmployeeBase(BaseModel):
     last_name: str
     email: EmailStr
     country: str
-    department_id: Optional[UUID] = None
+    department_id: Optional[str] = None
     status: int = 1
     joining_date: date
 
@@ -70,15 +70,20 @@ class EmployeeCreate(EmployeeBase):
 
     @field_validator("department_id")
     @classmethod
-    def validate_department_exists(cls, v: Optional[UUID]) -> Optional[UUID]:
+    def validate_department_exists(cls, v: Optional[str]) -> Optional[UUID]:
         if v is not None:
+            try:
+                uuid_obj = UUID(v)
+            except ValueError:
+                raise ValueError("Invalid UUID format.")
             db = SessionLocal()
             try:
-                dept = db.query(Department).filter_by(id=v).first()
+                dept = db.query(Department).filter_by(id=uuid_obj).first()
                 if not dept:
                     raise ValueError("Department does not exist.")
             finally:
                 db.close()
+            return uuid_obj
         return v
 
     @field_validator("annual_base_salary")
@@ -127,7 +132,7 @@ class EmployeeUpdate(BaseModel):
     last_name: Optional[str] = None
     email: Optional[EmailStr] = None
     country: Optional[str] = None
-    department_id: Optional[UUID] = None
+    department_id: Optional[str] = None
     status: Optional[int] = None
     joining_date: Optional[date] = None
     termination_date: Optional[date] = None
@@ -151,15 +156,20 @@ class EmployeeUpdate(BaseModel):
 
     @field_validator("department_id")
     @classmethod
-    def validate_department_exists(cls, v: Optional[UUID]) -> Optional[UUID]:
+    def validate_department_exists(cls, v: Optional[str]) -> Optional[UUID]:
         if v is not None:
+            try:
+                uuid_obj = UUID(v)
+            except ValueError:
+                raise ValueError("Invalid UUID format.")
             db = SessionLocal()
             try:
-                dept = db.query(Department).filter_by(id=v).first()
+                dept = db.query(Department).filter_by(id=uuid_obj).first()
                 if not dept:
                     raise ValueError("Department does not exist.")
             finally:
                 db.close()
+            return uuid_obj
         return v
 
     @field_validator("country")
@@ -175,6 +185,7 @@ class EmployeeUpdate(BaseModel):
 class EmployeeResponse(EmployeeBase):
     id: UUID
     tenant_id: UUID
+    department_id: Optional[UUID] = None
     employee_code: str
     termination_date: Optional[date] = None
     created_at: datetime

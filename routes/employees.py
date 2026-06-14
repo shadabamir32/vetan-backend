@@ -9,7 +9,7 @@ from schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeResponse
 from schemas.salary import SalaryRevisionResponse
 from dependencies.api_key_validator import api_key_validator
 
-router = APIRouter(prefix="/employees", tags=["Employees"])
+router = APIRouter(prefix="/employees", tags=["Employees V1"])
 
 
 @router.get("", response_model=dict)
@@ -17,7 +17,7 @@ def get_employees(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     search: Optional[str] = Query(None),
-    department_id: Optional[UUID] = Query(None),
+    department_id: Optional[str] = Query(None),
     country: Optional[str] = Query(None),
     status: Optional[int] = Query(None),
     db: Session = Depends(get_db),
@@ -42,7 +42,11 @@ def get_employees(
 
     # Apply filters
     if department_id:
-        query = query.filter(Employee.department_id == department_id)
+        try:
+            dept_uuid = UUID(department_id)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Invalid department_id format (must be a valid UUID).")
+        query = query.filter(Employee.department_id == dept_uuid)
     if country:
         query = query.filter(Employee.country == country)
     if status is not None:
@@ -147,7 +151,7 @@ def create_employee(
 
 @router.put("/{id}", response_model=EmployeeResponse)
 def update_employee(
-    id: UUID,
+    id: str,
     payload: EmployeeUpdate,
     db: Session = Depends(get_db),
     api_key: UUID = Depends(api_key_validator)
@@ -155,10 +159,15 @@ def update_employee(
     """
     Update employee profile fields.
     """
+    try:
+        employee_uuid = UUID(id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid employee ID format (must be a valid UUID).")
+
     employee = (
         db.query(Employee)
         .options(joinedload(Employee.department), joinedload(Employee.salary_revisions))
-        .filter(Employee.id == id, Employee.tenant_id == api_key)
+        .filter(Employee.id == employee_uuid, Employee.tenant_id == api_key)
         .first()
     )
     if not employee:
@@ -172,7 +181,7 @@ def update_employee(
         employee.department_id = payload.department_id
     if payload.email is not None:
         # Check duplicate email
-        existing = db.query(Employee).filter(Employee.email == payload.email, Employee.id != id).first()
+        existing = db.query(Employee).filter(Employee.email == payload.email, Employee.id != employee_uuid).first()
         if existing:
             raise HTTPException(status_code=422, detail="Email is already in use by another employee.")
     
