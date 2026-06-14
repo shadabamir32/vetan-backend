@@ -11,6 +11,7 @@ import EmployeeDetail from './EmployeeDetail'
 import { useToast } from '../../Toast'
 
 const PAGE_SIZE = 20
+const EXPORT_BATCH_SIZE = 500
 
 function SortIcon({ col, current, dir }) {
   if (col !== current) return <ChevronsUpDown size={12} style={{ opacity: .3 }} />
@@ -46,17 +47,21 @@ export default function EmployeesPage({ onSelectEmployee, isActive }) {
         return
       }
 
-      const exportParams = {
-        page: 1,
-        limit: totalCount
-      }
-      if (search) exportParams.search = search
-      if (country) exportParams.country = country
-      if (status !== '') exportParams.status = parseInt(status)
-      if (departmentId) exportParams.department_id = departmentId
+      const allRecords = []
+      const totalPages = Math.ceil(totalCount / EXPORT_BATCH_SIZE)
+      for (let exportPage = 1; exportPage <= totalPages; exportPage += 1) {
+        const exportParams = {
+          page: exportPage,
+          limit: EXPORT_BATCH_SIZE
+        }
+        if (search) exportParams.search = search
+        if (country) exportParams.country = country
+        if (status !== '') exportParams.status = parseInt(status)
+        if (departmentId) exportParams.department_id = departmentId
 
-      const response = await getEmployees(exportParams)
-      const allRecords = response.data?.data || []
+        const response = await getEmployees(exportParams)
+        allRecords.push(...(response.data?.data || []))
+      }
 
       const headers = [
         'Employee ID',
