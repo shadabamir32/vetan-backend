@@ -55,6 +55,7 @@ class PayrollRunDetailsResponse(PayrollRunResponse):
     total_deduction: Decimal
     total_net: Decimal
     employee_count: int
+    filtered_count: int
     page: int
     limit: int
     pages: int

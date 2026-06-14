@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy import or_, and_, func
 from sqlalchemy.orm import Session, joinedload
 from uuid import UUID, uuid4
+from typing import Optional
 
 from clients.database import get_db, SessionLocal
 from models import Employee, SalaryRevision, PayrollRun, PayrollRecord
@@ -251,11 +252,14 @@ def get_payroll_run_details(
     id: str,
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None),
+    department_id: Optional[str] = Query(None),
+    country: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     api_key: UUID = Depends(api_key_validator)
 ):
     """
-    Retrieve details of a specific payroll run including compiled totals and employee records (paginated).
+    Retrieve details of a specific payroll run including compiled totals and employee records (paginated and filterable).
     """
     try:
         run_uuid = UUID(id)
@@ -277,7 +281,7 @@ def get_payroll_run_details(
         )
 
     try:
-        # Compute aggregate totals directly in the database (efficient, database-agnostic)
+        # Compute aggregate totals directly in the database (efficient, database-agnostic, run-wide)
         totals = (
             db.query(
                 func.sum(PayrollRecord.gross_amount).label("total_gross"),
@@ -294,13 +298,44 @@ def get_payroll_run_details(
         total_net = totals.total_net or Decimal("0.00")
         employee_count = totals.employee_count or 0
 
-        # Calculate total pages
-        pages = (employee_count + limit - 1) // limit if employee_count > 0 else 1
+        # Build query for filtered records
+        records_query = (
+            db.query(PayrollRecord)
+            .join(Employee, PayrollRecord.employee_id == Employee.id)
+            .filter(PayrollRecord.payroll_run_id == run_uuid)
+        )
+
+        # Apply search keyword
+        if search:
+            search_filter = f"%{search}%"
+            records_query = records_query.filter(
+                (Employee.first_name.ilike(search_filter)) |
+                (Employee.last_name.ilike(search_filter)) |
+                (Employee.email.ilike(search_filter)) |
+                (Employee.employee_code.ilike(search_filter))
+            )
+
+        # Apply department filter
+        if department_id:
+            try:
+                dept_uuid = UUID(department_id)
+            except ValueError:
+                raise HTTPException(status_code=422, detail="Invalid department_id format (must be a valid UUID).")
+            records_query = records_query.filter(Employee.department_id == dept_uuid)
+
+        # Apply country filter
+        if country:
+            records_query = records_query.filter(Employee.country == country)
+
+        # Calculate filtered count
+        filtered_count = records_query.count()
+
+        # Calculate pages based on the filtered count
+        pages = (filtered_count + limit - 1) // limit if filtered_count > 0 else 1
 
         offset = (page - 1) * limit
         records = (
-            db.query(PayrollRecord)
-            .filter(PayrollRecord.payroll_run_id == run_uuid)
+            records_query
             .options(
                 joinedload(PayrollRecord.employee).joinedload(Employee.department)
             )
@@ -344,6 +379,7 @@ def get_payroll_run_details(
             total_deduction=total_deduction,
             total_net=total_net,
             employee_count=employee_count,
+            filtered_count=filtered_count,
             page=page,
             limit=limit,
             pages=pages,
