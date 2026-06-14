@@ -216,3 +216,39 @@ def update_employee(
 
     return resp
 
+
+@router.get("/{id}", response_model=EmployeeResponse)
+def get_employee(
+    id: str,
+    db: Session = Depends(get_db),
+    api_key: UUID = Depends(api_key_validator)
+):
+    """
+    Get detailed profile of a specific employee for the active tenant.
+    Includes department details and current salary information.
+    """
+    try:
+        employee_uuid = UUID(id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid employee ID format (must be a valid UUID).")
+
+    employee = (
+        db.query(Employee)
+        .options(
+            joinedload(Employee.department),
+            joinedload(Employee.salary_revisions)
+        )
+        .filter(Employee.id == employee_uuid, Employee.tenant_id == api_key)
+        .first()
+    )
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found.")
+
+    curr_sal = next((sr for sr in employee.salary_revisions if sr.is_current), None)
+
+    resp = EmployeeResponse.model_validate(employee)
+    resp.department_name = employee.department.name if employee.department else None
+    resp.current_salary = SalaryRevisionResponse.model_validate(curr_sal) if curr_sal else None
+
+    return resp
+
