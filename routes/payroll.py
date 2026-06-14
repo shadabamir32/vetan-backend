@@ -395,6 +395,8 @@ def get_payroll_run_details(
                 deduction_amount=rec.deduction_amount,
                 net_amount=rec.net_amount,
                 currency=rec.currency,
+                payroll_month=run.payroll_month,
+                payroll_year=run.payroll_year,
                 created_at=rec.created_at
             )
             record_responses.append(rec_resp)

@@ -35,6 +35,8 @@ class PayrollRecordResponse(BaseModel):
     deduction_amount: Decimal
     net_amount: Decimal
     currency: str
+    payroll_month: Optional[int] = None
+    payroll_year: Optional[int] = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
