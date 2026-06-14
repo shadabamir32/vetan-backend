@@ -25,4 +25,8 @@ export const getPayrollRuns = (params) => api.get('/payroll/runs', { params })
 export const getPayrollRunDetails = (id, params) => api.get(`/payroll/runs/${id}`, { params })
 export const runPayroll = (data) => api.post('/payroll/run', data)
 
+// ─── Master data endpoints ────────────────────────────────────────────────────
+export const getDepartments = () => api.get('/master/departments')
+export const getCountries = () => api.get('/master/countries')
+
 export default api

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from clients.database import get_db
-from routes import employees, salaries, payroll
+from routes import employees, salaries, payroll, master
 
 app = FastAPI(
     title="Vetan Backend APIs",
@@ -25,6 +25,7 @@ app.add_middleware(
 app.include_router(employees.router, prefix="/api/v1")
 app.include_router(salaries.router, prefix="/api/v1")
 app.include_router(payroll.router, prefix="/api/v1")
+app.include_router(master.router, prefix="/api/v1")
 
 @app.get("/api/health", tags=["Health"])
 def health_check(db: Session = Depends(get_db)):

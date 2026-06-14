@@ -1,8 +1,8 @@
 import React, { useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Search, Plus, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
-import { getEmployees } from '../../api'
-import { fmt, fmtDate, COUNTRIES, statusLabel, statusBadge } from '../../utils'
+import { getEmployees, getDepartments, getCountries } from '../../api'
+import { fmt, fmtDate, statusLabel, statusBadge } from '../../utils'
 import Pagination from '../../components/Pagination'
 import StatusBadge from '../../components/StatusBadge'
 import EmptyState from '../../components/EmptyState'
@@ -21,15 +21,27 @@ export default function EmployeesPage() {
   const [search, setSearch] = useState('')
   const [country, setCountry] = useState('')
   const [status, setStatus] = useState('')
+  const [departmentId, setDepartmentId] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editEmp, setEditEmp] = useState(null)
   const [detailId, setDetailId] = useState(null)
+
+  // Fetch master data for filtering
+  const { data: departments = [] } = useQuery({
+    queryKey: ['departments'],
+    queryFn: () => getDepartments().then(r => r.data),
+  })
+  const { data: countriesData = [] } = useQuery({
+    queryKey: ['countries'],
+    queryFn: () => getCountries().then(r => r.data),
+  })
 
   // Build query params
   const params = { page, limit: PAGE_SIZE }
   if (search) params.search = search
   if (country) params.country = country
   if (status !== '') params.status = parseInt(status)
+  if (departmentId) params.department_id = departmentId
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['employees', params],
@@ -69,7 +81,12 @@ export default function EmployeesPage() {
 
           <select className="form-select" style={{ width: 'auto', minWidth: 150 }} value={country} onChange={e => { setCountry(e.target.value); setPage(1) }}>
             <option value="">All countries</option>
-            {COUNTRIES.map(c => <option key={c}>{c}</option>)}
+            {countriesData.map(c => <option key={c.country} value={c.country}>{c.country}</option>)}
+          </select>
+
+          <select className="form-select" style={{ width: 'auto', minWidth: 160 }} value={departmentId} onChange={e => { setDepartmentId(e.target.value); setPage(1) }}>
+            <option value="">All departments</option>
+            {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
 
           <select className="form-select" style={{ width: 'auto', minWidth: 130 }} value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}>
@@ -78,9 +95,9 @@ export default function EmployeesPage() {
             <option value="0">Inactive</option>
           </select>
 
-          {(search || country || status !== '') && (
+          {(search || country || status !== '' || departmentId) && (
             <button className="btn btn-ghost btn-sm" onClick={() => {
-              setSearch(''); setCountry(''); setStatus(''); setPage(1)
+              setSearch(''); setCountry(''); setStatus(''); setDepartmentId(''); setPage(1)
             }}>Clear filters</button>
           )}
         </div>

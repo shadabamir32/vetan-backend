@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { X } from 'lucide-react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { createEmployee, updateEmployee } from '../../api'
-import { COUNTRIES, COUNTRY_CURRENCY, DEPARTMENTS } from '../../utils'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { createEmployee, updateEmployee, getDepartments, getCountries } from '../../api'
 import { useToast } from '../../Toast'
 
 const DEFAULTS = {
@@ -27,6 +26,23 @@ export default function EmployeeModal({ employee, onClose }) {
 
   const [form, setForm] = useState(DEFAULTS)
 
+  // Fetch master data
+  const { data: departments = [] } = useQuery({
+    queryKey: ['departments'],
+    queryFn: () => getDepartments().then(r => r.data),
+  })
+  const { data: countriesData = [] } = useQuery({
+    queryKey: ['countries'],
+    queryFn: () => getCountries().then(r => r.data),
+  })
+
+  // Build country → currency lookup from API data
+  const countryCurrencyMap = useMemo(() => {
+    const map = {}
+    countriesData.forEach(c => { map[c.country] = c.currency })
+    return map
+  }, [countriesData])
+
   useEffect(() => {
     if (employee) {
       setForm({
@@ -42,17 +58,16 @@ export default function EmployeeModal({ employee, onClose }) {
         annual_base_salary: '',
         monthly_allowance: '0',
         monthly_deduction: '0',
-        currency: COUNTRY_CURRENCY[employee.country] || '',
+        currency: countryCurrencyMap[employee.country] || '',
       })
     }
   }, [employee])
 
-  // Auto-set currency when country changes
   useEffect(() => {
-    if (form.country && COUNTRY_CURRENCY[form.country]) {
-      setForm(f => ({ ...f, currency: COUNTRY_CURRENCY[form.country] }))
+    if (form.country && countryCurrencyMap[form.country]) {
+      setForm(f => ({ ...f, currency: countryCurrencyMap[form.country] }))
     }
-  }, [form.country])
+  }, [form.country, countryCurrencyMap])
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
 
@@ -140,12 +155,15 @@ export default function EmployeeModal({ employee, onClose }) {
                 <label className="form-label">Country *</label>
                 <select required className="form-select" value={form.country} onChange={set('country')}>
                   <option value="">Select country</option>
-                  {COUNTRIES.map(c => <option key={c}>{c}</option>)}
+                  {countriesData.map(c => <option key={c.country} value={c.country}>{c.country}</option>)}
                 </select>
               </div>
               <div className="form-group">
                 <label className="form-label">Department</label>
-                <input className="form-input" value={form.department_id} onChange={set('department_id')} placeholder="Department UUID" />
+                <select className="form-select" value={form.department_id} onChange={set('department_id')}>
+                  <option value="">Select department</option>
+                  {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
               </div>
               <div className="form-group">
                 <label className="form-label">Joining Date *</label>

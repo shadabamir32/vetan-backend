@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { X, Search } from 'lucide-react'
-import { getPayrollRunDetails } from '../../api'
-import { fmt, fmtDateTime, fmtDate, monthName, COUNTRIES } from '../../utils'
+import { getPayrollRunDetails, getDepartments, getCountries } from '../../api'
+import { fmt, fmtDateTime, fmtDate, monthName } from '../../utils'
 import Pagination from '../../components/Pagination'
 import StatusBadge from '../../components/StatusBadge'
 import EmptyState from '../../components/EmptyState'
@@ -13,11 +13,23 @@ export default function PayrollRunDetail({ runId, onClose }) {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [country, setCountry] = useState('')
+  const [departmentId, setDepartmentId] = useState('')
+
+  // Fetch master data for filtering
+  const { data: departments = [] } = useQuery({
+    queryKey: ['departments'],
+    queryFn: () => getDepartments().then(r => r.data),
+  })
+  const { data: countriesData = [] } = useQuery({
+    queryKey: ['countries'],
+    queryFn: () => getCountries().then(r => r.data),
+  })
 
   // Build query params
   const params = { page, limit: PAGE_SIZE }
   if (search) params.search = search
   if (country) params.country = country
+  if (departmentId) params.department_id = departmentId
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['payroll-run-detail', runId, params],
@@ -89,10 +101,14 @@ export default function PayrollRunDetail({ runId, onClose }) {
                   </div>
                   <select className="form-select" style={{ width: 'auto', minWidth: 150 }} value={country} onChange={e => { setCountry(e.target.value); setPage(1) }}>
                     <option value="">All countries</option>
-                    {COUNTRIES.map(c => <option key={c}>{c}</option>)}
+                    {countriesData.map(c => <option key={c.country} value={c.country}>{c.country}</option>)}
                   </select>
-                  {(search || country) && (
-                    <button className="btn btn-ghost btn-sm" onClick={() => { setSearch(''); setCountry(''); setPage(1) }}>Clear</button>
+                  <select className="form-select" style={{ width: 'auto', minWidth: 160 }} value={departmentId} onChange={e => { setDepartmentId(e.target.value); setPage(1) }}>
+                    <option value="">All departments</option>
+                    {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                  {(search || country || departmentId) && (
+                    <button className="btn btn-ghost btn-sm" onClick={() => { setSearch(''); setCountry(''); setDepartmentId(''); setPage(1) }}>Clear</button>
                   )}
                   {isFetching && <span className="spinner" style={{ marginLeft: 8 }} />}
                 </div>
