@@ -56,35 +56,41 @@ function StatCard({ label, value, sub, variant, icon: Icon }) {
   )
 }
 
-export default function DashboardPage() {
+export default function DashboardPage({ isActive }) {
   const { data: stats, isLoading: sl } = useQuery({
     queryKey: ['analytics-stats'],
-    queryFn: () => getAnalyticsStats().then(r => r.data)
+    queryFn: () => getAnalyticsStats().then(r => r.data),
+    enabled: !!isActive
   })
   
   const { data: depts = [], isLoading: dl } = useQuery({
     queryKey: ['analytics-depts'],
-    queryFn: () => getAnalyticsDepartments().then(r => r.data)
+    queryFn: () => getAnalyticsDepartments().then(r => r.data),
+    enabled: !!isActive
   })
   
   const { data: countries = [], isLoading: cl } = useQuery({
     queryKey: ['analytics-countries'],
-    queryFn: () => getAnalyticsCountries().then(r => r.data)
+    queryFn: () => getAnalyticsCountries().then(r => r.data),
+    enabled: !!isActive
   })
   
   const { data: distribution = [], isLoading: dil } = useQuery({
     queryKey: ['analytics-distribution'],
-    queryFn: () => getAnalyticsDistribution().then(r => r.data)
+    queryFn: () => getAnalyticsDistribution().then(r => r.data),
+    enabled: !!isActive
   })
   
   const { data: extremes, isLoading: el } = useQuery({
     queryKey: ['analytics-extremes'],
-    queryFn: () => getAnalyticsExtremeSalaries().then(r => r.data)
+    queryFn: () => getAnalyticsExtremeSalaries().then(r => r.data),
+    enabled: !!isActive
   })
 
   const { data: audit, isLoading: al } = useQuery({
     queryKey: ['analytics-audit'],
-    queryFn: () => getAnalyticsSalaryAudit().then(r => r.data)
+    queryFn: () => getAnalyticsSalaryAudit().then(r => r.data),
+    enabled: !!isActive
   })
 
   const loading = sl || dl || cl || dil || el || al

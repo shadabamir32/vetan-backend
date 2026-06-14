@@ -10,7 +10,7 @@ import RunPayrollModal from './RunPayrollModal'
 
 const PAGE_SIZE = 20
 
-export default function PayrollRunsPage({ onSelectRun }) {
+export default function PayrollRunsPage({ onSelectRun, isActive }) {
   const [page, setPage] = useState(1)
   const [month, setMonth] = useState('')
   const [year, setYear] = useState('')
@@ -27,12 +27,14 @@ export default function PayrollRunsPage({ onSelectRun }) {
     queryKey: ['payroll-runs', params],
     queryFn: () => getPayrollRuns(params).then(r => r.data),
     placeholderData: (prev) => prev,
+    enabled: !!isActive,
   })
 
   // Fetch status summary metrics across all runs (limit 100 to cover full history)
   const { data: allRuns = [] } = useQuery({
     queryKey: ['all-runs-status'],
     queryFn: () => getPayrollRuns({ page: 1, limit: 100 }).then(r => r.data?.data || []),
+    enabled: !!isActive,
   })
 
   const total = data?.total ?? 0

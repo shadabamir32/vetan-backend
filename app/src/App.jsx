@@ -124,12 +124,15 @@ export default function App() {
         <main className="main-content">
           {/* Main dashboard list (preserved state) */}
           <div style={{ display: route.page === 'dashboard' ? 'contents' : 'none' }}>
-            <DashboardPage />
+            <DashboardPage isActive={route.page === 'dashboard'} />
           </div>
 
           {/* Main employees list (preserved state) */}
           <div style={{ display: route.page === 'employees' && !route.selectedEmpId ? 'contents' : 'none' }}>
-            <EmployeesPage onSelectEmployee={(id) => { window.location.hash = `#/employees/${id}` }} />
+            <EmployeesPage 
+              isActive={route.page === 'employees' && !route.selectedEmpId} 
+              onSelectEmployee={(id) => { window.location.hash = `#/employees/${id}` }} 
+            />
           </div>
 
           {/* Employee details (dynamically mounted) */}
@@ -149,7 +152,10 @@ export default function App() {
 
           {/* Main payroll runs list (preserved state) */}
           <div style={{ display: route.page === 'payroll' && !route.selectedRunId ? 'contents' : 'none' }}>
-            <PayrollRunsPage onSelectRun={(id) => { window.location.hash = `#/payroll/${id}` }} />
+            <PayrollRunsPage 
+              isActive={route.page === 'payroll' && !route.selectedRunId} 
+              onSelectRun={(id) => { window.location.hash = `#/payroll/${id}` }} 
+            />
           </div>
 
           {/* Payroll Run Detail (dynamically mounted) */}

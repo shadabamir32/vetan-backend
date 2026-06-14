@@ -17,7 +17,7 @@ function SortIcon({ col, current, dir }) {
   return dir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />
 }
 
-export default function EmployeesPage({ onSelectEmployee }) {
+export default function EmployeesPage({ onSelectEmployee, isActive }) {
   const toast = useToast()
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -121,10 +121,12 @@ export default function EmployeesPage({ onSelectEmployee }) {
   const { data: departments = [] } = useQuery({
     queryKey: ['departments'],
     queryFn: () => getDepartments().then(r => r.data),
+    enabled: !!isActive,
   })
   const { data: countriesData = [] } = useQuery({
     queryKey: ['countries'],
     queryFn: () => getCountries().then(r => r.data),
+    enabled: !!isActive,
   })
 
   // Build query params
@@ -138,6 +140,7 @@ export default function EmployeesPage({ onSelectEmployee }) {
     queryKey: ['employees', params],
     queryFn: () => getEmployees(params).then(r => r.data),
     placeholderData: (prev) => prev,
+    enabled: !!isActive,
   })
 
   const handleSearch = (e) => { setSearch(e.target.value); setPage(1) }
