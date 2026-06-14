@@ -1,7 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Users, Receipt } from 'lucide-react'
 import { ToastProvider } from './Toast'
 import EmployeesPage from './pages/employees/EmployeesPage'
+import EmployeeDetail from './pages/employees/EmployeeDetail'
 import PayrollRunsPage from './pages/payroll/PayrollRunsPage'
 import './App.css'
 
@@ -13,7 +14,49 @@ const NAV = [
 ]
 
 export default function App() {
-  const [page, setPage] = useState('employees')
+  const [route, setRoute] = useState(() => {
+    const hash = window.location.hash
+    if (hash.startsWith('#/employees/')) {
+      const parts = hash.split('/')
+      if (parts.length > 2 && parts[2]) {
+        return { page: 'employees', selectedEmpId: parts[2] }
+      }
+    }
+    if (hash === '#/payroll') {
+      return { page: 'payroll', selectedEmpId: null }
+    }
+    return { page: 'employees', selectedEmpId: null }
+  })
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash
+      if (hash.startsWith('#/employees/')) {
+        const parts = hash.split('/')
+        if (parts.length > 2 && parts[2]) {
+          setRoute({ page: 'employees', selectedEmpId: parts[2] })
+          return
+        }
+      }
+      if (hash === '#/payroll') {
+        setRoute({ page: 'payroll', selectedEmpId: null })
+        return
+      }
+      // Fallback
+      setRoute({ page: 'employees', selectedEmpId: null })
+    }
+
+    if (!window.location.hash) {
+      window.location.hash = '#/employees'
+    }
+
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [])
+
+  const handleNavClick = (id) => {
+    window.location.hash = id === 'employees' ? '#/employees' : '#/payroll'
+  }
 
   return (
     <ToastProvider>
@@ -30,8 +73,8 @@ export default function App() {
               return (
                 <button
                   key={item.id}
-                  className={`nav-item${page === item.id ? ' active' : ''}`}
-                  onClick={() => setPage(item.id)}
+                  className={`nav-item${route.page === item.id ? ' active' : ''}`}
+                  onClick={() => handleNavClick(item.id)}
                 >
                   <Icon size={17} className="icon" />
                   <span>{item.label}</span>
@@ -42,8 +85,23 @@ export default function App() {
           <div className="sidebar-footer">v1.0 · {TENANT_NAME}</div>
         </aside>
         <main className="main-content">
-          {page === 'employees' && <EmployeesPage />}
-          {page === 'payroll' && <PayrollRunsPage />}
+          {/* Main employees list (preserved state) */}
+          <div style={{ display: route.page === 'employees' && !route.selectedEmpId ? 'contents' : 'none' }}>
+            <EmployeesPage onSelectEmployee={(id) => { window.location.hash = `#/employees/${id}` }} />
+          </div>
+
+          {/* Employee details (dynamically mounted) */}
+          {route.page === 'employees' && route.selectedEmpId && (
+            <EmployeeDetail
+              empId={route.selectedEmpId}
+              onBack={() => { window.location.hash = '#/employees' }}
+            />
+          )}
+
+          {/* Payroll Runs list (preserved state) */}
+          <div style={{ display: route.page === 'payroll' ? 'contents' : 'none' }}>
+            <PayrollRunsPage />
+          </div>
         </main>
       </div>
     </ToastProvider>

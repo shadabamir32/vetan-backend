@@ -14,6 +14,8 @@ export const createEmployee = (data) => api.post('/employees', data)
 export const updateEmployee = (id, data) => api.put(`/employees/${id}`, data)
 // Note: DELETE endpoint not yet implemented on backend — will return 405
 export const deleteEmployee = (id) => api.delete(`/employees/${id}`)
+export const getEmployeePayrollHistory = (id) => api.get(`/employees/${id}/payroll-history`)
+export const runIndividualPayroll = (id, data) => api.post(`/employees/${id}/run-payroll`, data)
 
 // ─── Salary endpoints ─────────────────────────────────────────────────────────
 export const getSalaryHistory = (empId) => api.get(`/employees/${empId}/salary-revisions`)

@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Search, Plus, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { Search, Plus, ChevronUp, ChevronDown, ChevronsUpDown, RotateCw } from 'lucide-react'
 import { getEmployees, getDepartments, getCountries } from '../../api'
 import { fmt, fmtDate, statusLabel, statusBadge } from '../../utils'
 import Pagination from '../../components/Pagination'
@@ -16,15 +16,14 @@ function SortIcon({ col, current, dir }) {
   return dir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />
 }
 
-export default function EmployeesPage() {
+export default function EmployeesPage({ onSelectEmployee }) {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [country, setCountry] = useState('')
-  const [status, setStatus] = useState('')
+  const [status, setStatus] = useState('1')
   const [departmentId, setDepartmentId] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editEmp, setEditEmp] = useState(null)
-  const [detailId, setDetailId] = useState(null)
 
   // Fetch master data for filtering
   const { data: departments = [] } = useQuery({
@@ -43,7 +42,7 @@ export default function EmployeesPage() {
   if (status !== '') params.status = parseInt(status)
   if (departmentId) params.department_id = departmentId
 
-  const { data, isLoading, isFetching } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['employees', params],
     queryFn: () => getEmployees(params).then(r => r.data),
     placeholderData: (prev) => prev,
@@ -51,7 +50,7 @@ export default function EmployeesPage() {
 
   const handleSearch = (e) => { setSearch(e.target.value); setPage(1) }
 
-  const openEdit = (emp) => { setEditEmp(emp); setDetailId(null); setShowModal(true) }
+  const openEdit = (emp) => { setEditEmp(emp); setShowModal(true) }
 
   const total = data?.total ?? 0
   const totalPages = data?.pages ?? 1
@@ -100,6 +99,17 @@ export default function EmployeesPage() {
               setSearch(''); setCountry(''); setStatus(''); setDepartmentId(''); setPage(1)
             }}>Clear filters</button>
           )}
+
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            title="Refresh data"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}
+          >
+            <RotateCw size={13} className={isFetching ? 'spin' : ''} />
+            <span>Refresh</span>
+          </button>
         </div>
       </div>
 
@@ -133,7 +143,7 @@ export default function EmployeesPage() {
               {data?.data?.map(emp => {
                 const salary = emp.current_salary
                 return (
-                  <tr key={emp.id} onClick={() => setDetailId(emp.id)}>
+                  <tr key={emp.id} onClick={() => onSelectEmployee(emp.id)}>
                     <td className="cell-mono" style={{ color: 'var(--text-3)' }}>{emp.employee_code}</td>
                     <td>
                       <div style={{ fontWeight: 600 }}>{emp.first_name} {emp.last_name}</div>
@@ -167,14 +177,6 @@ export default function EmployeesPage() {
         <EmployeeModal
           employee={editEmp}
           onClose={() => { setShowModal(false); setEditEmp(null) }}
-        />
-      )}
-
-      {detailId && (
-        <EmployeeDetail
-          empId={detailId}
-          onClose={() => setDetailId(null)}
-          onEdit={(emp) => openEdit(emp)}
         />
       )}
     </div>

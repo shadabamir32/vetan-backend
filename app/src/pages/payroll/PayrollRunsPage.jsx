@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Plus, Eye } from 'lucide-react'
+import { Plus, Eye, RotateCw } from 'lucide-react'
 import { getPayrollRuns } from '../../api'
 import { fmtDateTime, monthName, monthOptions, payrollStatusLabel } from '../../utils'
 import Pagination from '../../components/Pagination'
@@ -25,7 +25,7 @@ export default function PayrollRunsPage() {
   if (year) params.payroll_year = parseInt(year)
   if (status !== '') params.status = parseInt(status)
 
-  const { data, isLoading, isFetching } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['payroll-runs', params],
     queryFn: () => getPayrollRuns(params).then(r => r.data),
     placeholderData: (prev) => prev,
@@ -80,6 +80,17 @@ export default function PayrollRunsPage() {
               setMonth(''); setYear(''); setStatus(''); setPage(1)
             }}>Clear filters</button>
           )}
+
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            title="Refresh data"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}
+          >
+            <RotateCw size={13} className={isFetching ? 'spin' : ''} />
+            <span>Refresh</span>
+          </button>
         </div>
       </div>
 
