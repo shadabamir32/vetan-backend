@@ -1,4 +1,4 @@
-# PeopleComp — Salary & Payroll Management Platform
+# Vetan — Salary & Payroll Management Platform
 
 ### Requirements Document v1.0
 
