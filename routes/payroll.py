@@ -2,8 +2,8 @@ import calendar
 import time
 from datetime import date, datetime
 from decimal import Decimal
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from sqlalchemy import or_, and_
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
+from sqlalchemy import or_, and_, func
 from sqlalchemy.orm import Session, joinedload
 from uuid import UUID, uuid4
 
@@ -249,11 +249,13 @@ def get_payroll_runs(
 @router.get("/runs/{id}", response_model=PayrollRunDetailsResponse)
 def get_payroll_run_details(
     id: str,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     api_key: UUID = Depends(api_key_validator)
 ):
     """
-    Retrieve details of a specific payroll run including compiled totals and employee records.
+    Retrieve details of a specific payroll run including compiled totals and employee records (paginated).
     """
     try:
         run_uuid = UUID(id)
@@ -275,27 +277,43 @@ def get_payroll_run_details(
         )
 
     try:
+        # Compute aggregate totals directly in the database (efficient, database-agnostic)
+        totals = (
+            db.query(
+                func.sum(PayrollRecord.gross_amount).label("total_gross"),
+                func.sum(PayrollRecord.deduction_amount).label("total_deduction"),
+                func.sum(PayrollRecord.net_amount).label("total_net"),
+                func.count(PayrollRecord.id).label("employee_count")
+            )
+            .filter(PayrollRecord.payroll_run_id == run_uuid)
+            .first()
+        )
+
+        total_gross = totals.total_gross or Decimal("0.00")
+        total_deduction = totals.total_deduction or Decimal("0.00")
+        total_net = totals.total_net or Decimal("0.00")
+        employee_count = totals.employee_count or 0
+
+        # Calculate total pages
+        pages = (employee_count + limit - 1) // limit if employee_count > 0 else 1
+
+        offset = (page - 1) * limit
         records = (
             db.query(PayrollRecord)
             .filter(PayrollRecord.payroll_run_id == run_uuid)
             .options(
                 joinedload(PayrollRecord.employee).joinedload(Employee.department)
             )
+            .order_by(PayrollRecord.id)
+            .offset(offset)
+            .limit(limit)
             .all()
         )
 
         record_responses = []
-        total_gross = Decimal("0.00")
-        total_deduction = Decimal("0.00")
-        total_net = Decimal("0.00")
-
         for rec in records:
             emp = rec.employee
             dept_name = emp.department.name if emp.department else None
-
-            total_gross += rec.gross_amount
-            total_deduction += rec.deduction_amount
-            total_net += rec.net_amount
 
             rec_resp = PayrollRecordResponse(
                 id=rec.id,
@@ -321,10 +339,14 @@ def get_payroll_run_details(
             payroll_year=run.payroll_year,
             status=run.status,
             run_at=run.run_at,
+            message=run.message,
             total_gross=total_gross,
             total_deduction=total_deduction,
             total_net=total_net,
-            employee_count=len(records),
+            employee_count=employee_count,
+            page=page,
+            limit=limit,
+            pages=pages,
             records=record_responses
         )
     except Exception as e:
