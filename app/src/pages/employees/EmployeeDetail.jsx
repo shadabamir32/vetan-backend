@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Pencil, Plus, CheckCircle, Clock, Receipt, User, HelpCircle } from 'lucide-react'
+import { ArrowLeft, Pencil, Plus, CheckCircle, Clock, Receipt, User, HelpCircle, Download } from 'lucide-react'
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import { getEmployee, getSalaryHistory, getEmployeePayrollHistory, runIndividualPayroll } from '../../api'
 import { fmt, fmtDate, monthName } from '../../utils'
@@ -117,6 +117,53 @@ export default function EmployeeDetail({ empId, onBack, backLabel = 'Back to Emp
     .filter(p => p.payroll_year === currentYear)
     .reduce((sum, p) => sum + parseFloat(p.net_amount), 0)
   const ytdText = payrollHistory.length > 0 ? fmt(ytdPaid, displayCurrency) : '—'
+
+  const handleExportRevisions = () => {
+    if (!revisions || revisions.length === 0) {
+      toast('No revision history records to export.', 'error')
+      return
+    }
+
+    const sorted = [...revisions].sort((a, b) => b.revision_number - a.revision_number)
+
+    const headers = [
+      'Revision Number',
+      'Effective From',
+      'Effective To',
+      'Annual Base Salary',
+      'Monthly Allowance',
+      'Monthly Deduction',
+      'Currency',
+      'Status'
+    ]
+
+    const rows = sorted.map(rev => [
+      rev.revision_number,
+      rev.effective_from || '—',
+      rev.effective_to || '—',
+      rev.annual_base_salary,
+      rev.monthly_allowance,
+      rev.monthly_deduction,
+      rev.currency,
+      rev.is_current ? 'Active' : 'Historical'
+    ])
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(r => r.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    const safeName = `${emp.first_name}_${emp.last_name}`.replace(/\s+/g, '_').toLowerCase()
+    link.setAttribute('download', `salary_history_${safeName}_${emp.employee_code}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    toast('Salary history CSV exported successfully.', 'success')
+  }
 
   // 4. Raise / Growth calculations for salary revisions (SCD Type 2)
   const sortedRevisions = [...revisions].sort((a, b) => a.revision_number - b.revision_number)
@@ -428,9 +475,14 @@ export default function EmployeeDetail({ empId, onBack, backLabel = 'Back to Emp
             <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: '1px solid var(--border)' }}>
                 <h3 style={{ margin: 0, fontSize: '.95rem', fontWeight: 700 }}>Revision History</h3>
-                <button className="btn btn-primary btn-sm" onClick={() => setShowRevisionModal(true)}>
-                  <Plus size={13} style={{ marginRight: 6 }} /> New Revision
-                </button>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button className="btn btn-secondary btn-sm" onClick={handleExportRevisions} disabled={revisions.length === 0}>
+                    <Download size={13} style={{ marginRight: 6 }} /> Export History
+                  </button>
+                  <button className="btn btn-primary btn-sm" onClick={() => setShowRevisionModal(true)}>
+                    <Plus size={13} style={{ marginRight: 6 }} /> New Revision
+                  </button>
+                </div>
               </div>
 
               {isRevisionsLoading ? (
