@@ -8,7 +8,7 @@ from seeds.company_seeder_v1 import seed_companies
 from seeds.department_seeder_v1 import seed_departments
 from seeds.employee_seeder_v1 import seed_employees
 
-if __name__ == "__main__":
+def seeds_db():
     print("Starting database seeding process...")
     
     print("\n--- Seeding Tenants ---")
@@ -21,3 +21,7 @@ if __name__ == "__main__":
     seed_employees()
     
     print("\nDatabase seeding completed successfully.")
+
+
+if __name__ == "__main__":
+    seeds_db()
