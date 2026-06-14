@@ -4,6 +4,7 @@ import { ToastProvider } from './Toast'
 import EmployeesPage from './pages/employees/EmployeesPage'
 import EmployeeDetail from './pages/employees/EmployeeDetail'
 import PayrollRunsPage from './pages/payroll/PayrollRunsPage'
+import PayrollRunDetail from './pages/payroll/PayrollRunDetail'
 import './App.css'
 
 const TENANT_NAME = import.meta.env.VITE_TENANT_NAME || 'Vetan'
@@ -16,34 +17,55 @@ const NAV = [
 export default function App() {
   const [route, setRoute] = useState(() => {
     const hash = window.location.hash
-    if (hash.startsWith('#/employees/')) {
-      const parts = hash.split('/')
+    const [path, queryStr] = hash.split('?')
+    const params = new URLSearchParams(queryStr || '')
+    const back = params.get('back')
+
+    if (path.startsWith('#/employees/')) {
+      const parts = path.split('/')
       if (parts.length > 2 && parts[2]) {
-        return { page: 'employees', selectedEmpId: parts[2] }
+        return { page: 'employees', selectedEmpId: parts[2], selectedRunId: null, backRoute: back }
       }
     }
-    if (hash === '#/payroll') {
-      return { page: 'payroll', selectedEmpId: null }
+    if (path.startsWith('#/payroll/')) {
+      const parts = path.split('/')
+      if (parts.length > 2 && parts[2]) {
+        return { page: 'payroll', selectedEmpId: null, selectedRunId: parts[2], backRoute: back }
+      }
     }
-    return { page: 'employees', selectedEmpId: null }
+    if (path === '#/payroll') {
+      return { page: 'payroll', selectedEmpId: null, selectedRunId: null, backRoute: back }
+    }
+    return { page: 'employees', selectedEmpId: null, selectedRunId: null, backRoute: null }
   })
 
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash
-      if (hash.startsWith('#/employees/')) {
-        const parts = hash.split('/')
+      const [path, queryStr] = hash.split('?')
+      const params = new URLSearchParams(queryStr || '')
+      const back = params.get('back')
+
+      if (path.startsWith('#/employees/')) {
+        const parts = path.split('/')
         if (parts.length > 2 && parts[2]) {
-          setRoute({ page: 'employees', selectedEmpId: parts[2] })
+          setRoute({ page: 'employees', selectedEmpId: parts[2], selectedRunId: null, backRoute: back })
           return
         }
       }
-      if (hash === '#/payroll') {
-        setRoute({ page: 'payroll', selectedEmpId: null })
+      if (path.startsWith('#/payroll/')) {
+        const parts = path.split('/')
+        if (parts.length > 2 && parts[2]) {
+          setRoute({ page: 'payroll', selectedEmpId: null, selectedRunId: parts[2], backRoute: back })
+          return
+        }
+      }
+      if (path === '#/payroll') {
+        setRoute({ page: 'payroll', selectedEmpId: null, selectedRunId: null, backRoute: back })
         return
       }
       // Fallback
-      setRoute({ page: 'employees', selectedEmpId: null })
+      setRoute({ page: 'employees', selectedEmpId: null, selectedRunId: null, backRoute: null })
     }
 
     if (!window.location.hash) {
@@ -94,14 +116,29 @@ export default function App() {
           {route.page === 'employees' && route.selectedEmpId && (
             <EmployeeDetail
               empId={route.selectedEmpId}
-              onBack={() => { window.location.hash = '#/employees' }}
+              onBack={() => {
+                if (route.backRoute) {
+                  window.location.hash = `#/${route.backRoute}`
+                } else {
+                  window.location.hash = '#/employees'
+                }
+              }}
+              backLabel={route.backRoute?.startsWith('payroll/') ? 'Back to Payroll Details' : 'Back to Employees'}
             />
           )}
 
-          {/* Payroll Runs list (preserved state) */}
-          <div style={{ display: route.page === 'payroll' ? 'contents' : 'none' }}>
-            <PayrollRunsPage />
+          {/* Main payroll runs list (preserved state) */}
+          <div style={{ display: route.page === 'payroll' && !route.selectedRunId ? 'contents' : 'none' }}>
+            <PayrollRunsPage onSelectRun={(id) => { window.location.hash = `#/payroll/${id}` }} />
           </div>
+
+          {/* Payroll Run Detail (dynamically mounted) */}
+          {route.page === 'payroll' && route.selectedRunId && (
+            <PayrollRunDetail
+              runId={route.selectedRunId}
+              onBack={() => { window.location.hash = '#/payroll' }}
+            />
+          )}
         </main>
       </div>
     </ToastProvider>

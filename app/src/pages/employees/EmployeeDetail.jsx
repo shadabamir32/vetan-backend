@@ -10,7 +10,7 @@ import { useToast } from '../../Toast'
 import EmployeeModal from './EmployeeModal'
 import SalaryRevisionModal from '../salary/SalaryRevisionModal'
 
-export default function EmployeeDetail({ empId, onBack }) {
+export default function EmployeeDetail({ empId, onBack, backLabel = 'Back to Employees' }) {
   const toast = useToast()
   const qc = useQueryClient()
   const [activeTab, setActiveTab] = useState('compensation')
@@ -67,7 +67,7 @@ export default function EmployeeDetail({ empId, onBack }) {
     return (
       <div style={{ padding: 32 }}>
         <button className="btn btn-ghost" onClick={onBack} style={{ marginBottom: 20 }}>
-          <ArrowLeft size={16} style={{ marginRight: 8 }} /> Back to Employees
+          <ArrowLeft size={16} style={{ marginRight: 8 }} /> {backLabel}
         </button>
         <EmptyState message="Employee not found." />
       </div>
@@ -177,7 +177,7 @@ export default function EmployeeDetail({ empId, onBack }) {
       <div className="page-header" style={{ borderBottom: 'none', paddingBottom: 8 }}>
         <div className="page-header-left">
           <button className="btn btn-ghost" onClick={onBack} style={{ paddingLeft: 0 }}>
-            <ArrowLeft size={16} style={{ marginRight: 8 }} /> Back to Employees
+            <ArrowLeft size={16} style={{ marginRight: 8 }} /> {backLabel}
           </button>
         </div>
         <div className="page-header-actions">

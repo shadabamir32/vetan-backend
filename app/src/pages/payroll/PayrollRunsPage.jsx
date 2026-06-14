@@ -7,17 +7,15 @@ import Pagination from '../../components/Pagination'
 import StatusBadge from '../../components/StatusBadge'
 import EmptyState from '../../components/EmptyState'
 import RunPayrollModal from './RunPayrollModal'
-import PayrollRunDetail from './PayrollRunDetail'
 
 const PAGE_SIZE = 20
 
-export default function PayrollRunsPage() {
+export default function PayrollRunsPage({ onSelectRun }) {
   const [page, setPage] = useState(1)
   const [month, setMonth] = useState('')
   const [year, setYear] = useState('')
   const [status, setStatus] = useState('')
   const [showRunModal, setShowRunModal] = useState(false)
-  const [detailRunId, setDetailRunId] = useState(null)
 
   // Build query params
   const params = { page, limit: PAGE_SIZE }
@@ -31,8 +29,18 @@ export default function PayrollRunsPage() {
     placeholderData: (prev) => prev,
   })
 
+  // Fetch status summary metrics across all runs (limit 100 to cover full history)
+  const { data: allRuns = [] } = useQuery({
+    queryKey: ['all-runs-status'],
+    queryFn: () => getPayrollRuns({ page: 1, limit: 100 }).then(r => r.data?.data || []),
+  })
+
   const total = data?.total ?? 0
   const totalPages = data?.pages ?? 1
+
+  const activeRunsCount = allRuns.filter(r => r.status === 0 || r.status === 1).length
+  const completedRunsCount = allRuns.filter(r => r.status === 2).length
+  const failedRunsCount = allRuns.filter(r => r.status === 4).length
 
   // Generate year options (last 5 years + next year)
   const currentYear = new Date().getFullYear()
@@ -51,6 +59,36 @@ export default function PayrollRunsPage() {
           <button className="btn btn-primary" onClick={() => setShowRunModal(true)}>
             <Plus size={15} /> Run Payroll
           </button>
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div style={{ padding: '24px 32px 0' }}>
+        <div className="stat-grid" style={{ marginBottom: 0 }}>
+          <div className="stat-card">
+            <div className="sc-label">Total runs</div>
+            <div className="sc-value">{total}</div>
+            <div className="sc-sub">Executed history</div>
+          </div>
+          <div className="stat-card amber">
+            <div className="sc-label">Active Runs</div>
+            <div className="sc-value" style={{ color: activeRunsCount > 0 ? 'var(--amber)' : 'var(--text-1)' }}>
+              {activeRunsCount}
+            </div>
+            <div className="sc-sub">Pending / In Progress</div>
+          </div>
+          <div className="stat-card green">
+            <div className="sc-label">Completed Runs</div>
+            <div className="sc-value">{completedRunsCount}</div>
+            <div className="sc-sub">Processed successfully</div>
+          </div>
+          <div className="stat-card red">
+            <div className="sc-label">Failed Runs</div>
+            <div className="sc-value" style={{ color: failedRunsCount > 0 ? 'var(--red)' : 'var(--text-1)' }}>
+              {failedRunsCount}
+            </div>
+            <div className="sc-sub">Errors detected</div>
+          </div>
         </div>
       </div>
 
@@ -119,7 +157,7 @@ export default function PayrollRunsPage() {
                 </td></tr>
               )}
               {data?.data?.map(run => (
-                <tr key={run.id} onClick={() => setDetailRunId(run.id)} style={{ cursor: 'pointer' }}>
+                <tr key={run.id} onClick={() => onSelectRun(run.id)} style={{ cursor: 'pointer' }}>
                   <td style={{ fontWeight: 600 }}>
                     {monthName(run.payroll_month)} {run.payroll_year}
                   </td>
@@ -129,7 +167,7 @@ export default function PayrollRunsPage() {
                     {run.message || '—'}
                   </td>
                   <td>
-                    <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); setDetailRunId(run.id) }}>
+                    <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); onSelectRun(run.id) }}>
                       <Eye size={14} />
                     </button>
                   </td>
@@ -151,13 +189,6 @@ export default function PayrollRunsPage() {
       {/* Modals */}
       {showRunModal && (
         <RunPayrollModal onClose={() => setShowRunModal(false)} />
-      )}
-
-      {detailRunId && (
-        <PayrollRunDetail
-          runId={detailRunId}
-          onClose={() => setDetailRunId(null)}
-        />
       )}
     </div>
   )
