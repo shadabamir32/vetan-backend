@@ -232,7 +232,7 @@ def run_payroll(
 @router.get("/runs", response_model=PaginatedPayrollRunsResponse)
 def get_payroll_runs(
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1),
     payroll_month: Optional[int] = Query(None, ge=1, le=12),
     payroll_year: Optional[int] = Query(None, ge=2000),
     status: Optional[int] = Query(None),
@@ -287,7 +287,7 @@ def get_payroll_runs(
 def get_payroll_run_details(
     id: str,
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1),
     search: Optional[str] = Query(None),
     department_id: Optional[str] = Query(None),
     country: Optional[str] = Query(None),

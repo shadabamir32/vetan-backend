@@ -20,7 +20,7 @@ router = APIRouter(prefix="/employees", tags=["Employees V1"])
 @router.get("", response_model=dict)
 def get_employees(
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1),
     search: Optional[str] = Query(None),
     department_id: Optional[str] = Query(None),
     country: Optional[str] = Query(None),
