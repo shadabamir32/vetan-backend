@@ -9,6 +9,7 @@ import EmptyState from '../../components/EmptyState'
 import { useToast } from '../../Toast'
 
 const PAGE_SIZE = 20
+const EXPORT_BATCH_SIZE = 500
 
 export default function PayrollRunDetail({ runId, onBack }) {
   const toast = useToast()
@@ -61,16 +62,21 @@ export default function PayrollRunDetail({ runId, onBack }) {
     if (!data) return
     try {
       setIsExporting(true)
-      const exportParams = {
-        page: 1,
-        limit: data.filtered_count || 10000,
-      }
-      if (search) exportParams.search = search
-      if (country) exportParams.country = country
-      if (departmentId) exportParams.department_id = departmentId
+      const records = []
+      const totalCount = data.filtered_count || 0
+      const totalPages = Math.ceil(totalCount / EXPORT_BATCH_SIZE)
+      for (let exportPage = 1; exportPage <= totalPages; exportPage += 1) {
+        const exportParams = {
+          page: exportPage,
+          limit: EXPORT_BATCH_SIZE,
+        }
+        if (search) exportParams.search = search
+        if (country) exportParams.country = country
+        if (departmentId) exportParams.department_id = departmentId
 
-      const response = await getPayrollRunDetails(runId, exportParams)
-      const records = response.data?.records || []
+        const response = await getPayrollRunDetails(runId, exportParams)
+        records.push(...(response.data?.records || []))
+      }
 
       if (records.length === 0) {
         toast('No records to export.', 'error')
@@ -179,9 +185,9 @@ export default function PayrollRunDetail({ runId, onBack }) {
           <div style={{ padding: '0 32px 24px' }}>
             <div className="stat-grid" style={{ marginBottom: 24 }}>
               {[
-                { label: 'Total Gross', value: fmt(data.total_gross, 'USD'), color: 'var(--text-1)' },
-                { label: 'Total Deductions', value: fmt(data.total_deduction, 'USD'), color: 'var(--red)' },
-                { label: 'Total Net Outflow', value: fmt(data.total_net, 'USD'), color: 'var(--green)' },
+                { label: 'Total Gross (USD)', value: fmt(data.total_gross, 'USD'), color: 'var(--text-1)' },
+                { label: 'Total Deductions (USD)', value: fmt(data.total_deduction, 'USD'), color: 'var(--red)' },
+                { label: 'Total Net Outflow (USD)', value: fmt(data.total_net, 'USD'), color: 'var(--green)' },
                 { label: 'Employee Count', value: data.employee_count?.toLocaleString(), color: 'var(--accent)' },
               ].map((card) => (
                 <div className="stat-card" key={card.label}>

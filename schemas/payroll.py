@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from uuid import UUID
 from datetime import datetime
 from decimal import Decimal
@@ -56,6 +56,7 @@ class PayrollRunDetailsResponse(PayrollRunResponse):
     total_gross: Decimal
     total_deduction: Decimal
     total_net: Decimal
+    currency_breakdown: List[dict] = Field(default_factory=list)
     employee_count: int
     filtered_count: int
     page: int

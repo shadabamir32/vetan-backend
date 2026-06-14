@@ -21,6 +21,26 @@ from dependencies.api_key_validator import api_key_validator
 
 router = APIRouter(prefix="/payroll", tags=["Payroll V1"])
 
+EXCHANGE_RATES_TO_USD = {
+    "USD": Decimal("1.0"),
+    "EUR": Decimal("1.08"),
+    "GBP": Decimal("1.27"),
+    "INR": Decimal("0.012"),
+    "CAD": Decimal("0.73"),
+    "AUD": Decimal("0.66"),
+    "SGD": Decimal("0.74"),
+    "BRL": Decimal("0.18"),
+    "MXN": Decimal("0.055"),
+    "PLN": Decimal("0.25"),
+    "SEK": Decimal("0.095"),
+    "JPY": Decimal("0.0064"),
+}
+
+
+def to_usd(amount: Decimal, currency: str) -> Decimal:
+    rate = EXCHANGE_RATES_TO_USD.get(currency, Decimal("1.0"))
+    return (amount * rate).quantize(Decimal("0.01"))
+
 
 def process_payroll_in_background(payroll_run_id: UUID, api_key: UUID, max_retries: int = 3) -> None:
     """
@@ -63,8 +83,8 @@ def process_payroll_in_background(payroll_run_id: UUID, api_key: UUID, max_retri
                     .filter(
                         Employee.tenant_id == api_key,
                         Employee.joining_date <= last_day_of_month,
+                        Employee.status == 1,
                         or_(
-                            Employee.status == 1,
                             Employee.termination_date == None,
                             Employee.termination_date >= start_of_month
                         )
@@ -318,21 +338,42 @@ def get_payroll_run_details(
 
     try:
         # Compute aggregate totals directly in the database (efficient, database-agnostic, run-wide)
-        totals = (
+        totals_by_currency = (
             db.query(
+                PayrollRecord.currency.label("currency"),
                 func.sum(PayrollRecord.gross_amount).label("total_gross"),
                 func.sum(PayrollRecord.deduction_amount).label("total_deduction"),
                 func.sum(PayrollRecord.net_amount).label("total_net"),
                 func.count(PayrollRecord.id).label("employee_count")
             )
             .filter(PayrollRecord.payroll_run_id == run_uuid)
-            .first()
+            .group_by(PayrollRecord.currency)
+            .all()
         )
 
-        total_gross = totals.total_gross or Decimal("0.00")
-        total_deduction = totals.total_deduction or Decimal("0.00")
-        total_net = totals.total_net or Decimal("0.00")
-        employee_count = totals.employee_count or 0
+        total_gross = Decimal("0.00")
+        total_deduction = Decimal("0.00")
+        total_net = Decimal("0.00")
+        employee_count = 0
+        currency_breakdown = []
+
+        for row in totals_by_currency:
+            gross = row.total_gross or Decimal("0.00")
+            deduction = row.total_deduction or Decimal("0.00")
+            net = row.total_net or Decimal("0.00")
+            currency = row.currency or "USD"
+
+            total_gross += to_usd(gross, currency)
+            total_deduction += to_usd(deduction, currency)
+            total_net += to_usd(net, currency)
+            employee_count += row.employee_count or 0
+            currency_breakdown.append({
+                "currency": currency,
+                "total_gross": gross,
+                "total_deduction": deduction,
+                "total_net": net,
+                "employee_count": row.employee_count or 0,
+            })
 
         # Build query for filtered records
         records_query = (
@@ -416,6 +457,7 @@ def get_payroll_run_details(
             total_gross=total_gross,
             total_deduction=total_deduction,
             total_net=total_net,
+            currency_breakdown=currency_breakdown,
             employee_count=employee_count,
             filtered_count=filtered_count,
             page=page,

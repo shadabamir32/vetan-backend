@@ -9,7 +9,7 @@ from sqlalchemy import or_
 
 from clients.database import get_db
 from models import Department, Employee, SalaryRevision, Tenant, PayrollRun, PayrollRecord
-from schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeResponse
+from schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeResponse, VALID_COUNTRY_CURRENCY
 from schemas.salary import SalaryRevisionResponse
 from schemas.payroll import PayrollRecordResponse
 from dependencies.api_key_validator import api_key_validator
@@ -100,6 +100,11 @@ def create_employee(
     Onboard a new employee for the tenant.
     Creates both the employee profile and their initial salary revision record.
     """
+    if payload.department_id is not None:
+        dept = db.query(Department).filter_by(id=payload.department_id, tenant_id=api_key).first()
+        if not dept:
+            raise HTTPException(status_code=422, detail="Department does not exist or belong to this tenant.")
+
     # Generate employee code based on current employee count
     count = db.query(Employee).filter(Employee.tenant_id == api_key).count()
     # Fetch tenant name for code generation. Tenant is already validated by dependency.
@@ -198,6 +203,17 @@ def update_employee(
     if payload.email is not None:
         employee.email = payload.email
     if payload.country is not None:
+        expected_currency = VALID_COUNTRY_CURRENCY.get(payload.country)
+        current_salary = next((sr for sr in employee.salary_revisions if sr.is_current), None)
+        if current_salary and expected_currency and current_salary.currency != expected_currency:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Country '{payload.country}' requires currency '{expected_currency}', "
+                    f"but the current salary revision is in '{current_salary.currency}'. "
+                    "Create a matching salary revision before changing country."
+                )
+            )
         employee.country = payload.country
     if payload.status is not None:
         employee.status = payload.status
@@ -342,6 +358,9 @@ def run_individual_payroll(
     )
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found.")
+
+    if employee.status != 1:
+        raise HTTPException(status_code=400, detail="Cannot run payroll for an inactive employee.")
 
     # Check joining and termination eligibility
     _, num_days = calendar.monthrange(payroll_year, payroll_month)
