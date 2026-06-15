@@ -156,7 +156,7 @@ export default function EmployeesPage({ onSelectEmployee, isActive }) {
   const totalPages = data?.pages ?? 1
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minWidth: 'fit-content' }}>
       {/* Header */}
       <div className="page-header">
         <div className="page-header-left">
