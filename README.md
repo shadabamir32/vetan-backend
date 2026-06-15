@@ -1,4 +1,4 @@
-# Vetan Backend
+# Vetan App
 
 > Multi-tenant salary management and payroll processing API powering global compensation analytics.
 
