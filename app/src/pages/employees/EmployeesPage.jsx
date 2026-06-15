@@ -156,7 +156,7 @@ export default function EmployeesPage({ onSelectEmployee, isActive }) {
   const totalPages = data?.pages ?? 1
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowX: 'hidden' }}>
       {/* Header */}
       <div className="page-header">
         <div className="page-header-left">
@@ -228,14 +228,14 @@ export default function EmployeesPage({ onSelectEmployee, isActive }) {
       </div>
 
       {/* Table */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '0 32px 32px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '0 32px 32px', minWidth: 0 }}>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>Code</th>
                 <th>Name</th>
-                <th>Email</th>
+                <th className="col-email">Email</th>
                 <th>Department</th>
                 <th>Country</th>
                 <th>Annual Base Salary</th>
@@ -262,7 +262,7 @@ export default function EmployeesPage({ onSelectEmployee, isActive }) {
                     <td>
                       <div style={{ fontWeight: 600 }}>{emp.first_name} {emp.last_name}</div>
                     </td>
-                    <td style={{ color: 'var(--text-2)', fontSize: '.82rem' }}>{emp.email}</td>
+                    <td className="col-email" style={{ color: 'var(--text-2)', fontSize: '.82rem' }}>{emp.email}</td>
                     <td>{emp.department_name || '—'}</td>
                     <td>{emp.country}</td>
                     <td className="cell-mono">

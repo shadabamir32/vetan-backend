@@ -104,7 +104,7 @@ export default function DashboardPage({ isActive }) {
   }
 
   return (
-    <div>
+    <div style={{ minWidth: 'fit-content', minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
       <div className="page-header">
         <div className="page-header-left">
           <h1>Dashboard</h1>
